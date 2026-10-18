@@ -229,7 +229,7 @@ The search starts from your profile's city, country and current role; change the
 
 ## Automated search and Gmail
 
-Under **Find jobs**, save one or more searches as automatic profiles. **Settings → Automation** controls the daily server-time schedule (08:00 by default), the match threshold and mandatory language/experience filtering. Each profile can read 1–3 result pages per run (up to 10 postings and one JSearch API request per page). Eligible postings with an explicit application email address are prepared one at a time and appear under **Review**. Dossier never guesses an address and never sends a batch: each email needs its own confirmation.
+Under **Find jobs**, save one or more searches as automatic profiles. **Settings → Automation** controls the daily time and IANA time zone (08:00 UTC by default), the match threshold and mandatory language/experience filtering. Daylight-saving changes follow the selected zone automatically. Each profile can read 1–3 result pages per run (up to 10 postings and one JSearch API request per page). Eligible postings with an explicit application email address are prepared one at a time and appear under **Review**. Dossier never guesses an address and never sends a batch: each email needs its own confirmation.
 
 To connect Gmail:
 

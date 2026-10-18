@@ -21,6 +21,7 @@ import { checkForUpdate } from "@/lib/update-check";
 import { countTailoredDocuments, deleteAllDownloads, zipPdfsJob } from "@/lib/jobs/zip-pdfs";
 import { prisma } from "@/lib/prisma";
 import { applySecretChange, JOB_SOURCE_KEY } from "@/lib/secrets";
+import { isTimeZone } from "@/lib/time-zones";
 import { startAutomationSchedule } from "@/lib/automation/schedule";
 import { gmailConnection, gmailConnectionView } from "@/lib/gmail/client";
 import { gmailOAuthConfig } from "@/lib/gmail/config";
@@ -183,12 +184,15 @@ export const updateSettings = action(
     updateCheck: z.boolean().optional(),
     automationEnabled: z.boolean().optional(),
     automationTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
+    automationTimeZone: z.string().trim().max(100).refine(isTimeZone, "Choose a valid time zone.").optional(),
     automationMatchThreshold: z.number().int().min(1).max(100).optional(),
     automationBlockCriticalGaps: z.boolean().optional(),
   }),
   async (changes) => {
     await saveSettings(changes);
-    if (changes.automationEnabled !== undefined || changes.automationTime !== undefined) await startAutomationSchedule(true);
+    if (changes.automationEnabled !== undefined || changes.automationTime !== undefined || changes.automationTimeZone !== undefined) {
+      await startAutomationSchedule(true);
+    }
     return null;
   },
 );

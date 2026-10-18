@@ -7,15 +7,16 @@ import { toastResult } from "@/components/toast";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { Toggle } from "@/components/ui/toggle";
 
 import { disconnectGmail, testGmailConnection, updateSettings } from "./actions";
 import { SettingsSectionIntro } from "./settings-screen";
 
-type State = { enabled: boolean; time: string; threshold: number; blockCriticalGaps: boolean; problem: string | null };
+type State = { enabled: boolean; time: string; timeZone: string; threshold: number; blockCriticalGaps: boolean; problem: string | null };
 type Gmail = { configured: boolean; email: string | null; connectedAt: Date | null };
 
-export function AutomationSection({ initial, gmail: initialGmail, gmailProblem }: { initial: State; gmail: Gmail; gmailProblem: string | null }) {
+export function AutomationSection({ initial, timeZones, gmail: initialGmail, gmailProblem }: { initial: State; timeZones: string[]; gmail: Gmail; gmailProblem: string | null }) {
   const track = useTrackSave();
   const [state, setState] = useState(initial);
   const [gmail, setGmail] = useState(initialGmail);
@@ -27,6 +28,7 @@ export function AutomationSection({ initial, gmail: initialGmail, gmailProblem }
     void track(updateSettings({
       ...(patch.enabled === undefined ? {} : { automationEnabled: patch.enabled }),
       ...(patch.time === undefined ? {} : { automationTime: patch.time }),
+      ...(patch.timeZone === undefined ? {} : { automationTimeZone: patch.timeZone }),
       ...(patch.threshold === undefined ? {} : { automationMatchThreshold: patch.threshold }),
       ...(patch.blockCriticalGaps === undefined ? {} : { automationBlockCriticalGaps: patch.blockCriticalGaps }),
     })).then((result) => { if (!toastResult(result).ok) setState(previous); });
@@ -44,9 +46,13 @@ export function AutomationSection({ initial, gmail: initialGmail, gmailProblem }
       <Card className="flex flex-col gap-5">
         <Toggle label="Run daily job searches" description="Uses each enabled search profile once per day." checked={state.enabled} onCheckedChange={(enabled) => change({ enabled })} />
         <div className="grid gap-4 sm:grid-cols-2">
-          <Input label="Daily time (server TZ)" type="time" value={state.time} onChange={(event) => change({ time: event.target.value })} />
+          <Input label="Daily time" type="time" value={state.time} onChange={(event) => change({ time: event.target.value })} />
+          <Select label="Time zone" value={state.timeZone} onChange={(event) => change({ timeZone: event.target.value })}>
+            {timeZones.map((timeZone) => <option key={timeZone} value={timeZone}>{timeZone}</option>)}
+          </Select>
           <Input label="Minimum match (%)" type="number" min={1} max={100} value={state.threshold} onChange={(event) => change({ threshold: Number(event.target.value) })} />
         </div>
+        <p className="text-meta text-muted">Daily time follows the selected zone, including daylight-saving changes.</p>
         <Toggle label="Block mandatory language/experience gaps" checked={state.blockCriticalGaps} onCheckedChange={(blockCriticalGaps) => change({ blockCriticalGaps })} />
         {state.problem && <p role="alert" className="text-sm text-error-strong">Last run: {state.problem}</p>}
       </Card>

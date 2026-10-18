@@ -66,6 +66,7 @@ describe("stored settings", () => {
       updateDismissed: null,
       automationEnabled: false,
       automationTime: "08:00",
+      automationTimeZone: "UTC",
       automationMatchThreshold: 70,
       automationBlockCriticalGaps: true,
       automationProblem: null,

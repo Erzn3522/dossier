@@ -13,6 +13,7 @@ import { appVersion } from "@/lib/version";
 import { prisma } from "@/lib/prisma";
 import { loadProfileName } from "@/lib/profile-data";
 import { loadSettings } from "@/lib/settings-data";
+import { supportedTimeZones } from "@/lib/time-zones";
 import { availableUpdate } from "@/lib/update-check";
 import { USAGE_PING_HOST, usagePingEnabled } from "@/lib/usage-ping";
 
@@ -49,10 +50,12 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
           initial={{
             enabled: settings.automationEnabled,
             time: settings.automationTime,
+            timeZone: settings.automationTimeZone,
             threshold: settings.automationMatchThreshold,
             blockCriticalGaps: settings.automationBlockCriticalGaps,
             problem: settings.automationProblem,
           }}
+          timeZones={supportedTimeZones(settings.automationTimeZone, "Europe/Ljubljana")}
           gmail={await gmailConnectionView()}
           gmailProblem={gmailProblem(params.gmail)}
         />

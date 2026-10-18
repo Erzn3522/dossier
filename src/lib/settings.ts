@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { AiProvider, Creativity, DateFormat, PaperSize, Tone } from "@/generated/prisma/enums";
 import { JOB_SOURCES, JSEARCH_HOSTS } from "@/lib/job-search/search";
+import { DEFAULT_AUTOMATION_TIME_ZONE, isTimeZone } from "@/lib/time-zones";
 
 /** Date styles for documents (SET-6), labelled with an example as in the prototype. */
 export const DATE_FORMATS: readonly { value: DateFormat; label: string }[] = [
@@ -122,9 +123,10 @@ export const settingsSchema = z.object({
   latestVersionUrl: z.string().nullable().catch(null),
   updateCheckDay: z.string().nullable().catch(null),
   updateDismissed: z.string().nullable().catch(null),
-  // Automated search and review queue. Time is in the server's TZ.
+  // Automated search and review queue. Time is interpreted in this IANA zone.
   automationEnabled: flag(false),
   automationTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).catch("08:00"),
+  automationTimeZone: z.string().trim().refine(isTimeZone).catch(DEFAULT_AUTOMATION_TIME_ZONE),
   automationMatchThreshold: z.coerce.number().int().min(1).max(100).catch(70),
   automationBlockCriticalGaps: flag(true),
   automationProblem: z.string().nullable().catch(null),
