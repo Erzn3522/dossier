@@ -10,6 +10,7 @@ import { prisma } from "@/lib/prisma";
  */
 export async function loadDashboard(options: DashboardOptions = {}, now = new Date()): Promise<DashboardFigures> {
   const applications = await prisma.application.findMany({
+    where: { reviewState: "NORMAL" },
     select: {
       id: true,
       title: true,

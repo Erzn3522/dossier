@@ -24,12 +24,15 @@ import { JobSearchSection } from "./job-search-section";
 import { AboutSection, type AboutFacts } from "./about-section";
 import { settingsSectionFromParam } from "./sections";
 import { SettingsScreen } from "./settings-screen";
+import { AutomationSection } from "./automation-section";
+import { gmailConnectionView } from "@/lib/gmail/client";
 
 export const metadata: Metadata = { title: "Settings" };
 
 /** Settings (PRD §6.8); the section is in `?section=` (E10-1). */
 export default async function SettingsPage({ searchParams }: PageProps<"/settings">) {
-  const section = settingsSectionFromParam((await searchParams).section);
+  const params = await searchParams;
+  const section = settingsSectionFromParam(params.section);
   const settings = await loadSettings();
 
   return (
@@ -41,6 +44,18 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
         </>
       ) : section === "jobs" ? (
         <JobSearchSection initial={jobSearchView(await loadJobSearchConfig())} />
+      ) : section === "automation" ? (
+        <AutomationSection
+          initial={{
+            enabled: settings.automationEnabled,
+            time: settings.automationTime,
+            threshold: settings.automationMatchThreshold,
+            blockCriticalGaps: settings.automationBlockCriticalGaps,
+            problem: settings.automationProblem,
+          }}
+          gmail={await gmailConnectionView()}
+          gmailProblem={gmailProblem(params.gmail)}
+        />
       ) : section === "data" ? (
         <DataSection
           hasApiKey={[settings.apiKeyEnc, settings.jsearchKeyEnc, settings.adzunaKeyEnc].some((key) => key !== null)}
@@ -80,11 +95,19 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
   );
 }
 
+function gmailProblem(value: string | string[] | undefined): string | null {
+  const result = Array.isArray(value) ? value[0] : value;
+  if (result === "missing-scope") return "Google did not grant the Gmail send permission. Reconnect and approve ‘Send email on your behalf’.";
+  if (result === "invalid") return "The Gmail connection return was invalid or expired. Start Connect Gmail again.";
+  if (result === "failed") return "Google could not complete the Gmail connection. Try connecting again.";
+  return null;
+}
+
 /** The file name preview uses your name and your latest application, or sample values (SET-8). */
 async function filePreview() {
   const [name, latest] = await Promise.all([
     loadProfileName(),
-    prisma.application.findFirst({ orderBy: { createdAt: "desc" }, select: { company: true, role: true } }),
+    prisma.application.findFirst({ where: { reviewState: "NORMAL" }, orderBy: { createdAt: "desc" }, select: { company: true, role: true } }),
   ]);
   return {
     name: name.trim() || "Jane Doe",
@@ -123,7 +146,7 @@ async function aboutFacts(): Promise<AboutFacts> {
   const [[database], ai, applications, settings] = await Promise.all([
     prisma.$queryRaw<{ size: bigint }[]>`SELECT pg_database_size(current_database()) AS size`,
     loadAiConfig(),
-    prisma.application.count(),
+    prisma.application.count({ where: { reviewState: "NORMAL" } }),
     loadSettings(),
   ]);
   return [

@@ -30,11 +30,13 @@ describe("JSON column schemas", () => {
       salary: null,
       deadline: "2026-10-15",
       requirements: [
-        { text: "Has built or maintained a design system", kind: "skill" as const, skill: "Design systems", years: null, language: null },
-        { text: "5+ years of product design", kind: "years" as const, skill: null, years: 5, language: null },
+        { text: "Has built or maintained a design system", kind: "skill" as const, skill: "Design systems", years: null, language: null, required: false },
+        { text: "5+ years of product design", kind: "years" as const, skill: null, years: 5, language: null, required: false },
       ],
       asksForReferences: false,
       language: "English",
+      contactName: null,
+      contactEmail: null,
     };
     expect(extractedSchema.parse(extracted)).toEqual(extracted);
     expect(extractedSchema.safeParse({ ...extracted, deadline: "15 Oct" }).success).toBe(false);

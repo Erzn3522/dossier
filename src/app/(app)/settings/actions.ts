@@ -21,6 +21,10 @@ import { checkForUpdate } from "@/lib/update-check";
 import { countTailoredDocuments, deleteAllDownloads, zipPdfsJob } from "@/lib/jobs/zip-pdfs";
 import { prisma } from "@/lib/prisma";
 import { applySecretChange, JOB_SOURCE_KEY } from "@/lib/secrets";
+import { startAutomationSchedule } from "@/lib/automation/schedule";
+import { gmailConnection, gmailConnectionView } from "@/lib/gmail/client";
+import { gmailOAuthConfig } from "@/lib/gmail/config";
+import { GmailScopeMissing, refreshAccessToken, revokeToken } from "@/lib/gmail/oauth";
 
 import { seedBuiltIns } from "../../../../prisma/seed/built-ins";
 import { isJobRetention } from "@/lib/settings";
@@ -177,12 +181,41 @@ export const updateSettings = action(
     nightlyBackup: z.boolean().optional(),
     jobRetentionHours: z.number().refine(isJobRetention).optional(),
     updateCheck: z.boolean().optional(),
+    automationEnabled: z.boolean().optional(),
+    automationTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
+    automationMatchThreshold: z.number().int().min(1).max(100).optional(),
+    automationBlockCriticalGaps: z.boolean().optional(),
   }),
   async (changes) => {
     await saveSettings(changes);
+    if (changes.automationEnabled !== undefined || changes.automationTime !== undefined) await startAutomationSchedule(true);
     return null;
   },
 );
+
+export const testGmailConnection = action(z.object({}), async (_, { toast }) => {
+  const config = gmailOAuthConfig();
+  if (!config) throw new ActionError("Set the three Gmail environment variables and restart Dossier first.");
+  const connection = await gmailConnection();
+  try {
+    await refreshAccessToken(config, connection.refreshToken);
+  } catch (error) {
+    if (error instanceof GmailScopeMissing) throw new ActionError(error.message);
+    throw error;
+  }
+  toast(`Connected as ${connection.email}.`);
+  return gmailConnectionView();
+});
+
+export const disconnectGmail = action(z.object({}), async (_, { toast }) => {
+  const row = await prisma.gmailConnection.findUnique({ where: { id: "default" } });
+  if (!row) return gmailConnectionView();
+  const connection = await gmailConnection();
+  await revokeToken(connection.refreshToken);
+  await prisma.gmailConnection.deleteMany({ where: { id: "default" } });
+  toast("Gmail disconnected.");
+  return gmailConnectionView();
+});
 
 /**
  * "Other language…" (SET-7): adds a language to the list and writes
@@ -218,6 +251,8 @@ export const deleteEverything = action(z.object({ confirm: z.literal("DELETE") }
 
   await prisma.$transaction(async (tx) => {
     await tx.job.deleteMany();
+    await tx.gmailConnection.deleteMany();
+    await tx.automatedSearch.deleteMany();
     // Find jobs' postings and past searches (E14-9, E14-10).
     await tx.posting.deleteMany();
     await tx.postingSearch.deleteMany();

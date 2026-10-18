@@ -49,6 +49,8 @@ export const requirementSchema = z.object({
   years: z.number().nullable(),
   /** For a spoken language: its English name, e.g. "Dutch". */
   language: z.string().nullable(),
+  /** Whether the posting clearly says this is mandatory rather than preferred. */
+  required: z.boolean().default(false),
 });
 export type Requirement = z.infer<typeof requirementSchema>;
 
@@ -67,6 +69,9 @@ export const extractedSchema = z.object({
   asksForReferences: z.boolean(),
   /** The posting's language, e.g. "English", for "Write documents in: the posting's language". */
   language: z.string().nullable(),
+  /** An explicit application recipient from the posting; never guessed. */
+  contactName: z.string().nullable().default(null),
+  contactEmail: z.string().nullable().default(null),
 });
 export type Extracted = z.infer<typeof extractedSchema>;
 
@@ -98,6 +103,8 @@ export function extractedOf(application: {
     requirements: [],
     asksForReferences: false,
     language: orNull(application.language),
+    contactName: null,
+    contactEmail: null,
   };
 }
 

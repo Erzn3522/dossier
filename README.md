@@ -227,6 +227,27 @@ Find jobs is off until you pick a source in **Settings → Job search**. LinkedI
 
 The search starts from your profile's city, country and current role; change the place, radius (10 to 200 km), how recent and Remote only as you like. Every search is kept with what it found until you remove it, under **Past searches**, so going back to one, or reloading, doesn't spend another search.
 
+## Automated search and Gmail
+
+Under **Find jobs**, save one or more searches as automatic profiles. **Settings → Automation** controls the daily server-time schedule (08:00 by default), the match threshold and mandatory language/experience filtering. Each profile can read 1–3 result pages per run (up to 10 postings and one JSearch API request per page). Eligible postings with an explicit application email address are prepared one at a time and appear under **Review**. Dossier never guesses an address and never sends a batch: each email needs its own confirmation.
+
+To connect Gmail:
+
+1. In [Google Cloud Console](https://console.cloud.google.com/), create or select a project and enable **Gmail API**.
+2. Configure the OAuth consent screen. While the app is in Testing, add your Gmail address as a test user.
+3. Create an OAuth 2.0 **Web application** client. Add `http://localhost:3000/api/gmail/callback` as an authorized redirect URI for local use, or `https://your-dossier-host/api/gmail/callback` in production.
+4. Put the matching values in `.env` and restart Dossier:
+
+   ```env
+   DOSSIER_PUBLIC_URL=http://localhost:3000
+   DOSSIER_GOOGLE_CLIENT_ID=your-client-id
+   DOSSIER_GOOGLE_CLIENT_SECRET=your-client-secret
+   ```
+
+5. Open **Settings → Automation → Connect Gmail**.
+
+The OAuth grant uses identity plus `gmail.send`; it cannot read the inbox. The refresh token is encrypted with an installation-specific key derived from `DOSSIER_SECRET`, is excluded from exports and must be reconnected after importing onto another install or changing `DOSSIER_SECRET`. If Gmail does not confirm a send before the network times out, Dossier does not retry automatically: check Gmail Sent, then choose **Mark sent** or the warned **Retry send** action.
+
 ## Backups and restore
 
 Run these from your Dossier folder (`~/dossier`).

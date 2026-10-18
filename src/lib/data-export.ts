@@ -5,6 +5,9 @@ import { z } from "zod";
 import type { PrismaClient } from "@/generated/prisma/client";
 import {
   ApplicationStatus,
+  ApplicationReviewState,
+  AutomationCandidateStatus,
+  AutomationRunStatus,
   ChatRole,
   DateStyle,
   Density,
@@ -33,9 +36,9 @@ import { appVersion } from "@/lib/version";
 
 export const EXPORT_FORMAT = "dossier-export";
 /** Bump when the file's shape changes; imports refuse versions they don't know. 2 added Find jobs' postings and keys (E14-9). */
-export const EXPORT_SCHEMA_VERSION = 2;
+export const EXPORT_SCHEMA_VERSION = 3;
 /** The versions imports can read. */
-export const EXPORT_SCHEMA_VERSIONS: readonly number[] = [1, 2];
+export const EXPORT_SCHEMA_VERSIONS: readonly number[] = [1, 2, 3];
 
 /** The setting that holds the encrypted API key, which only this server can read. */
 const API_KEY_SETTING = "apiKeyEnc";
@@ -152,6 +155,7 @@ const application = z.object({
   match: z.unknown().nullable(),
   matchedWith: text.nullable(),
   status: z.enum(ApplicationStatus),
+  reviewState: z.enum(ApplicationReviewState).default(ApplicationReviewState.NORMAL),
   furthestStage: z.enum(FunnelStage).nullable(),
   sentAt: optionalDate,
   /** The next interview (E9-9); absent in older files. */
@@ -203,10 +207,49 @@ const postingSearch = z.object({
   updatedAt: date,
 });
 
+const automatedSearch = z.object({
+  id: text,
+  name: text,
+  enabled: z.boolean(),
+  pagesPerRun: z.number().int().min(1).max(3).default(1),
+  query: z.unknown(),
+  lastRunAt: optionalDate,
+  createdAt: date,
+  updatedAt: date,
+});
+const automationRun = z.object({
+  id: text,
+  searchId: text,
+  status: z.enum(AutomationRunStatus),
+  found: int,
+  eligible: int,
+  prepared: int,
+  filtered: int,
+  failed: int,
+  error: text.nullable(),
+  startedAt: date,
+  finishedAt: optionalDate,
+  updatedAt: date,
+});
+const automationCandidate = z.object({
+  id: text,
+  runId: text,
+  postingId: text,
+  applicationId: text.nullable(),
+  status: z.enum(AutomationCandidateStatus),
+  matchHit: int.nullable(),
+  matchTotal: int.nullable(),
+  recipientOverride: text.nullable().default(null),
+  reason: text.nullable(),
+  error: text.nullable(),
+  createdAt: date,
+  updatedAt: date,
+});
+
 /** An export file as read back (E10-6). */
 export const exportSchema = z.object({
   format: z.literal(EXPORT_FORMAT),
-  schemaVersion: z.literal([1, 2]),
+  schemaVersion: z.literal([1, 2, 3]),
   appVersion: text,
   exportedAt: date,
   profile: z.object({
@@ -228,6 +271,9 @@ export const exportSchema = z.object({
   postings: z.array(posting).default([]),
   /** Past searches with what they found (E14-10); absent in version 1 files. */
   searches: z.array(postingSearch).default([]),
+  automatedSearches: z.array(automatedSearch).default([]),
+  automationRuns: z.array(automationRun).default([]),
+  automationCandidates: z.array(automationCandidate).default([]),
 });
 export type DossierExport = z.infer<typeof exportSchema>;
 
@@ -249,7 +295,7 @@ export async function buildExport(
   { includeApiKey = false, now = new Date() }: { includeApiKey?: boolean; now?: Date } = {},
 ): Promise<DossierExport> {
   return db.$transaction(async (tx) => {
-    const [fields, skills, languages, experience, education, references, themes, settings, applications, postings, searches] = await Promise.all([
+    const [fields, skills, languages, experience, education, references, themes, settings, applications, postings, searches, automatedSearches, automationRuns, automationCandidates] = await Promise.all([
       tx.profileField.findMany({ select: { key: true, value: true }, orderBy: { key: "asc" } }),
       tx.skill.findMany({ select: { id: true, name: true, sort: true, createdAt: true }, orderBy: { createdAt: "asc" } }),
       tx.language.findMany({ select: { id: true, name: true, level: true, sort: true, createdAt: true }, orderBy: { createdAt: "asc" } }),
@@ -273,6 +319,9 @@ export async function buildExport(
       }),
       tx.posting.findMany({ orderBy: { createdAt: "asc" } }),
       tx.postingSearch.findMany({ orderBy: { createdAt: "asc" } }),
+      tx.automatedSearch.findMany({ orderBy: { createdAt: "asc" } }),
+      tx.automationRun.findMany({ orderBy: { startedAt: "asc" } }),
+      tx.automationCandidate.findMany({ orderBy: { createdAt: "asc" } }),
     ]);
 
     // Keys only when asked for, decrypted; one that's unreadable here too (DOSSIER_SECRET changed) has nothing to export.
@@ -312,6 +361,9 @@ export async function buildExport(
       applications,
       postings,
       searches,
+      automatedSearches,
+      automationRuns,
+      automationCandidates,
     };
   });
 }

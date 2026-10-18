@@ -1,10 +1,11 @@
 import { z } from "zod";
 
 import { extractedSchema, requirementSchema, type Extracted } from "@/lib/application-data";
+import { isEmailAddress } from "@/lib/application-email";
 
 import { postingForPrompt, system, UNTRUSTED_POSTING, type Task } from "./prompt-parts";
 
-export const EXTRACT_POSTING_VERSION = "extract-posting@1";
+export const EXTRACT_POSTING_VERSION = "extract-posting@2";
 
 // What the model returns. The deadline is free text here and checked in
 // code, since models like to answer "15 Oct" rather than an ISO date.
@@ -19,6 +20,8 @@ const answerSchema = z.object({
   requirements: z.array(requirementSchema),
   asksForReferences: z.boolean(),
   language: z.string().nullable(),
+  contactName: z.string().nullable().default(null),
+  contactEmail: z.string().nullable().default(null),
 });
 
 const INSTRUCTIONS = `You read job postings and pull out their details as JSON.
@@ -32,9 +35,10 @@ const INSTRUCTIONS = `You read job postings and pull out their details as JSON.
   - "language" for a spoken language, with language set to its English name ("Dutch");
   - "skill" for a skill, tool or method, with skill set to a short name ("Figma", "Design systems", "User research");
   - "other" for anything else, such as domain experience.
-  Leave the fields that don't apply null.
+  required is true only when the posting clearly makes the requirement mandatory (for example "must", "required" or "minimum"), not when it says preferred, ideal or a plus. Leave the fields that don't apply null.
 - asksForReferences: true only if the posting explicitly asks applicants to provide references; otherwise false.
-- language: the language the posting is written in, as its English name.`;
+- language: the language the posting is written in, as its English name.
+- contactName and contactEmail: the person and email address the posting explicitly says to send the application to. Use null when applications go through a form, the address has another purpose, or either value is absent. Never infer or invent an address.`;
 
 /** NEW-3: title, company, role, location, work mode, salary, deadline, typed requirements and language. */
 export const extractPosting: Task<{ posting: string; today?: Date }, Extracted> = async (provider, { posting, today = new Date() }, { signal }) => {
@@ -50,6 +54,9 @@ export const extractPosting: Task<{ posting: string; today?: Date }, Extracted> 
   });
   const role = answer.role?.trim() || null;
   const company = answer.company?.trim() || null;
+  const candidateEmail = answer.contactEmail?.trim().replace(/^mailto:/i, "") ?? "";
+  const contactEmail =
+    isEmailAddress(candidateEmail) && posting.toLowerCase().includes(candidateEmail.toLowerCase()) ? candidateEmail : null;
   return {
     data: extractedSchema.parse({
       ...answer,
@@ -58,6 +65,8 @@ export const extractPosting: Task<{ posting: string; today?: Date }, Extracted> 
       title: answer.title?.trim() || (role && company ? `${role} · ${company}` : null),
       deadline: isoDate(answer.deadline),
       requirements: answer.requirements.filter((requirement) => requirement.text.trim()),
+      contactName: contactEmail ? answer.contactName?.trim() || null : null,
+      contactEmail,
     }),
     promptVersion: EXTRACT_POSTING_VERSION,
   };

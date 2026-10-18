@@ -88,3 +88,32 @@ test("tests the connection in Settings → Job search", async ({ page }) => {
   await page.getByRole("button", { name: "Test connection" }).click();
   await expect(page.getByText(/^Connected · JSearch answered in/)).toBeVisible();
 });
+
+test("saves an automatic search, runs it and reviews its prepared drafts", async ({ page }) => {
+  await resetData();
+  await page.goto("/jobs?q=product%20designer&where=Rotterdam&country=nl");
+  await page.getByRole("button", { name: "Save current search" }).click();
+  await page.getByLabel("Profile name").fill("Daily design roles");
+  await page.getByLabel("Pages per run").selectOption("2");
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+  await expect(page.getByText("Daily design roles")).toBeVisible();
+  await expect(page.getByLabel("Pages per run for Daily design roles")).toHaveValue("2");
+
+  await page.getByRole("button", { name: "Run now" }).click();
+  await expect(page.getByText(/postings queued for review/)).toBeVisible();
+  await expect.poll(async () => Number((await sql<{ count: string }>(`SELECT count(*) FROM "AutomationCandidate" WHERE status = 'READY'`))[0].count), { timeout: 60_000 }).toBe(4);
+
+  await page.goto("/review");
+  await expect(page.getByRole("article")).toHaveCount(4);
+  await page.getByRole("button", { name: "Keep as draft" }).first().click();
+  await expect(page.getByText("Moved to Applications as a draft.")).toBeVisible();
+  await expect(page.getByRole("article")).toHaveCount(3);
+  await page.getByRole("button", { name: "Dismiss" }).first().click();
+  await expect(page.getByText(/will not be prepared again/)).toBeVisible();
+  await expect(page.getByRole("article")).toHaveCount(2);
+
+  await page.goto("/settings?section=automation");
+  await page.getByRole("switch", { name: "Run daily job searches" }).click();
+  await expect.poll(async () => (await sql<{ value: string }>(`SELECT value FROM "Setting" WHERE key = 'automationEnabled'`))[0]?.value).toBe("true");
+  await expect(page.getByRole("heading", { name: "Gmail sending" })).toBeVisible();
+});

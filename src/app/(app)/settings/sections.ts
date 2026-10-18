@@ -2,6 +2,7 @@
 export const SETTINGS_SECTIONS = [
   { id: "ai", label: "AI provider" },
   { id: "jobs", label: "Job search" },
+  { id: "automation", label: "Automation" },
   { id: "documents", label: "Documents" },
   { id: "data", label: "Your data" },
   { id: "about", label: "About" },

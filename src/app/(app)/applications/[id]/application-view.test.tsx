@@ -578,8 +578,8 @@ describe("undoing an AI change (E8-6)", () => {
 
 describe("the Job posting tab (E8-7)", () => {
   const requirements = [
-    { text: "Strong prototyping skills in Figma", kind: "skill" as const, skill: "Figma", years: null, language: null },
-    { text: "Experience with Kubernetes", kind: "skill" as const, skill: "Kubernetes", years: null, language: null },
+    { text: "Strong prototyping skills in Figma", kind: "skill" as const, skill: "Figma", years: null, language: null, required: false },
+    { text: "Experience with Kubernetes", kind: "skill" as const, skill: "Kubernetes", years: null, language: null, required: false },
   ];
   const match = {
     items: [

@@ -10,6 +10,7 @@ const requirement = (text: string, extra: Partial<Requirement> = {}): Requiremen
   skill: null,
   years: null,
   language: null,
+  required: false,
   ...extra,
 });
 const item = (requirement: string, result: "covered" | "partial" | "gap", skill: string | null = null) => ({

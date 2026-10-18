@@ -87,7 +87,7 @@ export const zipPdfsJob = defineJob({
     await removeOldZips(now.getTime());
     const [applications, name, settings] = await Promise.all([
       prisma.application.findMany({
-        where: { documents: { some: { kind: { in: PRINTED } } } },
+        where: { reviewState: "NORMAL", documents: { some: { kind: { in: PRINTED } } } },
         orderBy: { createdAt: "asc" },
         select: { id: true, company: true, role: true, documents: { where: { kind: { in: PRINTED } }, select: { kind: true }, orderBy: { kind: "asc" } } },
       }),

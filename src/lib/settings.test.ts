@@ -64,6 +64,11 @@ describe("stored settings", () => {
       latestVersionUrl: null,
       updateCheckDay: null,
       updateDismissed: null,
+      automationEnabled: false,
+      automationTime: "08:00",
+      automationMatchThreshold: 70,
+      automationBlockCriticalGaps: true,
+      automationProblem: null,
       usagePingId: null,
       usagePingDay: null,
     });

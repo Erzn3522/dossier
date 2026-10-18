@@ -16,6 +16,8 @@ export type SecretKind = { purpose: KeyPurpose; associatedData: string };
 export const AI_API_KEY: SecretKind = { purpose: "api-key-encryption", associatedData: "dossier api key v1" };
 /** A job source's API key (E14-4). */
 export const JOB_SOURCE_KEY: SecretKind = { purpose: "job-source-key-encryption", associatedData: "dossier job source key v1" };
+/** Gmail's OAuth refresh token. It is installation-local and never exported. */
+export const GMAIL_OAUTH_TOKEN: SecretKind = { purpose: "gmail-oauth-encryption", associatedData: "dossier gmail oauth token v1" };
 
 const VERSION = "v1";
 const IV_BYTES = 12;

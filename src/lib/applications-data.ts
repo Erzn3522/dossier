@@ -30,7 +30,7 @@ export type ApplicationRow = {
 /** Every application, archived ones only when asked for, sorted for the table. */
 export async function loadApplicationRows({ archived, sort }: { archived: boolean; sort: Sort }, now = new Date()) {
   const applications = await prisma.application.findMany({
-    where: archived ? {} : { archivedAt: null },
+    where: { reviewState: "NORMAL", ...(archived ? {} : { archivedAt: null }) },
     select: {
       id: true,
       title: true,

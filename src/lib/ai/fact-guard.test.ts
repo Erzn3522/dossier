@@ -18,6 +18,8 @@ const extracted = {
   requirements: [],
   asksForReferences: false,
   language: "English",
+  contactName: null,
+  contactEmail: null,
 };
 const sources = sourcesFor(profile, extracted, sample.ledgerly.posting, 11);
 const check = (text: string) => unverifiedFacts(text, sources);

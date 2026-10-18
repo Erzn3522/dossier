@@ -81,6 +81,14 @@ describe("route", () => {
     expect(await response.json()).toEqual({ error: messages.crossOrigin });
   });
 
+  it("can allow a cross-site OAuth return without allowing cross-site writes", async () => {
+    const oauthReturn = route(async () => Response.json({ ok: true }), { allowCrossSiteGet: true });
+    const get = await oauthReturn(request("GET", { "sec-fetch-site": "cross-site" }), undefined);
+    expect(get.status).toBe(200);
+    const post = await oauthReturn(request("POST", { origin: "https://evil.example", "sec-fetch-site": "cross-site" }), undefined);
+    expect(post.status).toBe(403);
+  });
+
   it("returns 401 without a session", async () => {
     vi.mocked(getSession).mockResolvedValue(null);
     const response = await ok(request("GET"), undefined);

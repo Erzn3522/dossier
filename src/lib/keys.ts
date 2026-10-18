@@ -8,7 +8,14 @@ import { env } from "@/lib/env";
  * What a key derived from DOSSIER_SECRET is for. Each purpose gets its own key
  * (a different HKDF `info`), so a key can't be reused for something else.
  */
-export type KeyPurpose = "session" | "password-fingerprint" | "api-key-encryption" | "job-source-key-encryption" | "print-token";
+export type KeyPurpose =
+  | "session"
+  | "password-fingerprint"
+  | "api-key-encryption"
+  | "job-source-key-encryption"
+  | "gmail-oauth-encryption"
+  | "gmail-oauth-state"
+  | "print-token";
 
 const cached = new Map<KeyPurpose, Uint8Array>();
 

@@ -42,16 +42,18 @@ const extracted: Extracted = {
   salary: "€75,000–€90,000",
   deadline: "2026-10-15",
   requirements: [
-    { text: "5+ years of product design", kind: "years", skill: null, years: 5, language: null },
-    { text: "Has built or maintained a design system", kind: "skill", skill: "Design systems", years: null, language: null },
-    { text: "Runs user research independently", kind: "skill", skill: "User research", years: null, language: null },
-    { text: "Strong prototyping skills in Figma", kind: "skill", skill: "Figma", years: null, language: null },
-    { text: "Accessibility know-how (WCAG 2.2)", kind: "skill", skill: "Accessibility", years: null, language: null },
-    { text: "Experience with payments or fintech", kind: "other", skill: null, years: null, language: null },
-    { text: "Dutch is a plus", kind: "language", skill: null, years: null, language: "Dutch" },
+    { text: "5+ years of product design", kind: "years", skill: null, years: 5, language: null, required: true },
+    { text: "Has built or maintained a design system", kind: "skill", skill: "Design systems", years: null, language: null, required: true },
+    { text: "Runs user research independently", kind: "skill", skill: "User research", years: null, language: null, required: true },
+    { text: "Strong prototyping skills in Figma", kind: "skill", skill: "Figma", years: null, language: null, required: true },
+    { text: "Accessibility know-how (WCAG 2.2)", kind: "skill", skill: "Accessibility", years: null, language: null, required: true },
+    { text: "Experience with payments or fintech", kind: "other", skill: null, years: null, language: null, required: false },
+    { text: "Dutch is a plus", kind: "language", skill: null, years: null, language: "Dutch", required: false },
   ],
   asksForReferences: false,
   language: "English",
+  contactName: null,
+  contactEmail: null,
 };
 
 /** A mock that answers once with `answer`; returns it and the calls it got. */
@@ -65,7 +67,7 @@ describe("extractPosting", () => {
   it("reads the posting as data and returns typed requirements with an ISO deadline (NEW-3)", async () => {
     const provider = model({ ...extracted, title: null, deadline: "15 October 2026", requirements: [...extracted.requirements, { text: " ", kind: "other", skill: null, years: null, language: null }] });
     const { data, promptVersion } = await extractPosting(provider, { posting: sample.ledgerly.posting, today }, options);
-    expect(promptVersion).toBe("extract-posting@1");
+    expect(promptVersion).toBe("extract-posting@2");
     expect(data).toMatchObject({ title: "Senior Product Designer · Ledgerly", deadline: "2026-10-15", asksForReferences: false, language: "English" });
     expect(data.requirements).toHaveLength(7);
     expect(sent(provider).messages[0].content).toMatch(/^<posting>\nLedgerly: Senior Product Designer/);
@@ -133,7 +135,7 @@ describe("matchRequirements", () => {
   });
 
   it("can't be talked into a skill the profile doesn't have", async () => {
-    const kubernetes = { text: "Runs Kubernetes clusters", kind: "skill" as const, skill: "Kubernetes", years: null, language: null };
+    const kubernetes = { text: "Runs Kubernetes clusters", kind: "skill" as const, skill: "Kubernetes", years: null, language: null, required: false };
     const { data } = await matchRequirements(model({ matches: [{ requirement: 0, skill: "Kubernetes", language: null }] }), { requirements: [kubernetes], profile, today }, options);
     expect(data.items[0]).toMatchObject({ result: "gap", skill: null });
   });
@@ -276,7 +278,7 @@ describe("writeEmail", () => {
   it("writes the recipient, subject and message, ending with the sign-off and name", async () => {
     const provider = model(answer);
     const { data, promptVersion } = await writeEmail(provider, input, options);
-    expect(promptVersion).toBe("write-email@1");
+    expect(promptVersion).toBe("write-email@2");
     expect(data).toEqual([
       { id: "to", label: "Recipient", text: "John Doe <john.doe@example.com>" },
       { id: "subject", label: "Subject", text: "Application: Senior Product Designer, Jane Doe" },

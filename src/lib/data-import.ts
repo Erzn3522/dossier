@@ -75,7 +75,7 @@ const json = (value: unknown) => (value === null || value === undefined ? Prisma
  * install's own settings (the usage ping's) stay as they are.
  */
 export async function importExport(db: PrismaClient, data: DossierExport): Promise<void> {
-  const { profile, themes, settings, applications, postings, searches, apiKey, jobSourceKeys } = data;
+  const { profile, themes, settings, applications, postings, searches, automatedSearches, automationRuns, automationCandidates, apiKey, jobSourceKeys } = data;
   const fromFile: Record<string, string | null> = {
     apiKeyEnc: apiKey ? encryptApiKey(apiKey) : null,
     jsearchKeyEnc: jobSourceKeys?.jsearch ? encryptSecret(JOB_SOURCE_KEY, jobSourceKeys.jsearch) : null,
@@ -88,6 +88,8 @@ export async function importExport(db: PrismaClient, data: DossierExport): Promi
       // notes and jobs along; the other jobs (a resume import, postings read
       // for applications never created) hold the old data too.
       await tx.job.deleteMany();
+      await tx.gmailConnection.deleteMany();
+      await tx.automatedSearch.deleteMany();
       await tx.posting.deleteMany();
       await tx.postingSearch.deleteMany();
       await tx.application.deleteMany();
@@ -162,6 +164,20 @@ export async function importExport(db: PrismaClient, data: DossierExport): Promi
       });
       await tx.postingSearch.createMany({
         data: searches.map((search) => ({ ...search, query: (search.query ?? {}) as Prisma.InputJsonValue, postings: (search.postings ?? []) as Prisma.InputJsonValue })),
+      });
+      await tx.automatedSearch.createMany({
+        data: automatedSearches.map((search) => ({ ...search, query: (search.query ?? {}) as Prisma.InputJsonValue })),
+      });
+      await tx.automationRun.createMany({ data: automationRuns });
+      const postingIds = new Set(postings.map((posting) => posting.id));
+      const runIds = new Set(automationRuns.map((run) => run.id));
+      await tx.automationCandidate.createMany({
+        data: automationCandidates
+          .filter((candidate) => postingIds.has(candidate.postingId) && runIds.has(candidate.runId))
+          .map((candidate) => ({
+            ...candidate,
+            applicationId: candidate.applicationId && applicationIds.has(candidate.applicationId) ? candidate.applicationId : null,
+          })),
       });
     },
     // A big export takes longer than the default five seconds.

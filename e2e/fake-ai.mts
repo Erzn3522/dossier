@@ -48,6 +48,8 @@ const answers: Record<string, (messages: Message[]) => unknown> = {
     ],
     asksForReferences: false,
     language: "English",
+    contactName: "Sanne de Vries",
+    contactEmail: "careers@ledgerly.eu",
   }),
 
   requirement_matches: (messages) => {

@@ -23,9 +23,11 @@ const extracted = {
   mode: null,
   salary: null,
   deadline: "2026-10-15",
-  requirements: [{ text: "Strong prototyping skills in Figma", kind: "skill", skill: "Figma", years: null, language: null }],
+  requirements: [{ text: "Strong prototyping skills in Figma", kind: "skill", skill: "Figma", years: null, language: null, required: false }],
   asksForReferences: false,
   language: "English",
+  contactName: null,
+  contactEmail: null,
 };
 
 describe("readPostingJob (E7-2)", () => {
@@ -38,7 +40,7 @@ describe("readPostingJob (E7-2)", () => {
     expect(steps).toEqual([...READ_POSTING_STEPS]);
     expect(result).toMatchObject({
       extracted: { company: "Ledgerly", title: "Senior Product Designer · Ledgerly" },
-      extractedWith: "extract-posting@1",
+      extractedWith: "extract-posting@2",
       match: { items: [{ requirement: "Strong prototyping skills in Figma", result: "covered", experienceIds: ["e2"] }] },
       matchedWith: "match-requirements@1",
     });

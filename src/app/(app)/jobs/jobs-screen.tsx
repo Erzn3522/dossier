@@ -30,6 +30,8 @@ import {
 import { SOURCE_INFO, sourceCovers } from "@/lib/job-search/sources";
 
 import { runJobSearch } from "./actions";
+import type { AutomatedSearchView } from "@/lib/automation/searches";
+import { AutomationProfiles } from "./automation-profiles";
 import { PastSearches } from "./past-searches";
 import { PostingResults } from "./posting-results";
 
@@ -54,12 +56,13 @@ export type JobsScreenProps = {
   counts: { searches: number; saved: number; dismissed: number };
   /** Now, from the server, so "3 days ago" reads the same on both sides. */
   today: string;
+  automatedSearches?: AutomatedSearchView[];
 };
 
 const SETTINGS_HREF = "/settings?section=jobs";
 
 /** Find jobs (E14-6, E14-7, E14-10): the search form and a kept search's postings, past searches, or the postings kept from them. */
-export function JobsScreen({ source, countries, view, query, search, missingSearch = false, kept = [], history = [], counts, today }: JobsScreenProps) {
+export function JobsScreen({ source, countries, view, query, search, missingSearch = false, kept = [], history = [], counts, today, automatedSearches = [] }: JobsScreenProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   // A search that didn't work, with what was asked, for Try again.
@@ -114,6 +117,7 @@ export function JobsScreen({ source, countries, view, query, search, missingSear
   return (
     <>
       {header}
+      <AutomationProfiles profiles={automatedSearches} query={query} />
       <SearchForm source={source} countries={countries} query={query} pending={pending} onSearch={run} />
       {/* Announces each new set of results; the list itself is replaced. */}
       <p role="status" className="sr-only">

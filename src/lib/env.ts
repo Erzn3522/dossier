@@ -121,6 +121,10 @@ const schema = z.object({
   ),
   DOSSIER_ADZUNA_APP_ID: optional(z.string()),
   DOSSIER_ADZUNA_KEY: optional(z.string()),
+  // Gmail OAuth is optional. Settings explains which values are missing.
+  DOSSIER_PUBLIC_URL: optional(z.url({ protocol: /^https?$/, error: "DOSSIER_PUBLIC_URL must be an http:// or https:// URL." })),
+  DOSSIER_GOOGLE_CLIENT_ID: optional(z.string()),
+  DOSSIER_GOOGLE_CLIENT_SECRET: optional(z.string()),
   // For the end-to-end tests only: sends every job source's requests to
   // <url>/<source> instead, where a fake source answers (e2e/fake-jobs.mts).
   DOSSIER_JOBS_TEST_BASE_URL: optional(

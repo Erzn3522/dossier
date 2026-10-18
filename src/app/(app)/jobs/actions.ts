@@ -2,7 +2,16 @@
 
 import { z } from "zod";
 
-import { action } from "@/lib/action";
+import { revalidatePath } from "next/cache";
+
+import { action, ActionError } from "@/lib/action";
+import {
+  createAutomatedSearch,
+  deleteAutomatedSearch,
+  runAutomatedSearches,
+  setAutomatedSearchEnabled,
+  setAutomatedSearchPages,
+} from "@/lib/automation/searches";
 import { fullText } from "@/lib/job-search/find";
 import { foundPostingSchema, JOB_SOURCES, searchQuerySchema } from "@/lib/job-search/search";
 import { removeSearch, runSearch, showMoreFor } from "@/lib/posting-searches";
@@ -14,6 +23,7 @@ import { dismissPosting, savePosting, storePosting, unmarkPosting } from "@/lib/
 
 const postingRef = z.object({ source: z.enum(JOB_SOURCES), externalId: z.string().min(1).max(500) });
 const searchId = z.string().min(1).max(100);
+const automationPages = z.union([z.literal(1), z.literal(2), z.literal(3)]);
 
 /** "Search": asks the chosen source and keeps the search with what it found; gives its id, or what went wrong. */
 export const runJobSearch = action(z.object({ query: searchQuerySchema }), ({ query }) => runSearch(query));
@@ -60,4 +70,44 @@ export const startApplicationFrom = action(z.object({ posting: foundPostingSchem
 export const restorePosting = action(postingRef.extend({ saved: z.boolean() }), async ({ saved, ...ref }) => {
   await unmarkPosting(ref, "dismissed", { saved });
   return null;
+});
+
+export const addAutomatedSearch = action(
+  z.object({ name: z.string().trim().min(1).max(100), pagesPerRun: automationPages, query: searchQuerySchema }),
+  async ({ name, pagesPerRun, query }, { toast }) => {
+    const id = await createAutomatedSearch(name, query, pagesPerRun);
+    revalidatePath("/jobs");
+    toast("Automatic search saved.");
+    return { id };
+  },
+);
+
+export const toggleAutomatedSearch = action(z.object({ id: z.string().min(1), enabled: z.boolean() }), async ({ id, enabled }) => {
+  await setAutomatedSearchEnabled(id, enabled);
+  revalidatePath("/jobs");
+  return null;
+});
+
+export const changeAutomatedSearchPages = action(
+  z.object({ id: z.string().min(1), pagesPerRun: automationPages }),
+  async ({ id, pagesPerRun }) => {
+    await setAutomatedSearchPages(id, pagesPerRun);
+    revalidatePath("/jobs");
+    return null;
+  },
+);
+
+export const removeAutomatedSearch = action(z.object({ id: z.string().min(1) }), async ({ id }, { toast }) => {
+  await deleteAutomatedSearch(id);
+  revalidatePath("/jobs");
+  toast("Automatic search removed.");
+  return null;
+});
+
+export const runAutomatedSearchNow = action(z.object({ id: z.string().min(1) }), async ({ id }, { toast }) => {
+  const result = await runAutomatedSearches({ searchId: id });
+  if (result.skipped) throw new ActionError("An automated run is already in progress.");
+  revalidatePath("/review");
+  toast(result.started ? `${result.started} posting${result.started === 1 ? "" : "s"} queued for review.` : "Search finished; there were no new postings to prepare.");
+  return result;
 });

@@ -22,7 +22,7 @@ import {
 } from "./prompt-parts";
 import { withoutFrame } from "./write-cover-letter";
 
-export const WRITE_EMAIL_VERSION = "write-email@1";
+export const WRITE_EMAIL_VERSION = "write-email@2";
 
 const answerSchema = z.object({
   contactName: z.string().nullable(),
@@ -101,7 +101,11 @@ export const writeEmail: Task<EmailInput, Unit[]> = async (provider, { profile, 
     .filter(Boolean)
     .join("\n\n");
 
-  const [to, ...written] = emailUnits({ to: recipient(answer.contactName, answer.contactEmail, posting), subject: oneLine(answer.subject), body });
+  const [to, ...written] = emailUnits({
+    to: recipient(extracted.contactName ?? answer.contactName, extracted.contactEmail ?? answer.contactEmail, posting),
+    subject: oneLine(answer.subject),
+    body,
+  });
   return {
     // The recipient comes from the posting; the subject and message are checked like the letter's paragraphs.
     data: [to, ...(options.strict ? guardUnits(written, guardSources(profile, extracted, posting)) : written)],

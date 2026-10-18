@@ -25,7 +25,7 @@ describe("writeDocumentsJob (E7-6)", () => {
     const steps: string[] = [];
     const extracted = {
       title: "Designer · Ledgerly", company: "Ledgerly", role: "Designer", location: null, mode: null, salary: null, deadline: null,
-      requirements: [], asksForReferences: false, language: "English",
+      requirements: [], asksForReferences: false, language: "English", contactName: null, contactEmail: null,
     };
     const result = await writeDocumentsJob.run(
       { readJobId: "read-job", posting: "Ledgerly is hiring.", extracted, match: { items: [] }, tone: "WARM", note: "" },

@@ -16,7 +16,7 @@ const job = (id: string, title: string, company: string, extra: Record<string, u
   job_publisher: "LinkedIn",
   job_apply_link: `https://jobs.example/${id}`,
   apply_options: [{ publisher: "LinkedIn", apply_link: `https://jobs.example/${id}`, is_direct: false }],
-  job_description: `${company} is hiring a ${title}.\n\nWhat you'll do\n- Design checkout flows\n- Work with research\n\nWhat we're looking for\n- 5+ years of product design\n- Strong prototyping skills in Figma`,
+  job_description: `${company} is hiring a ${title}.\n\nWhat you'll do\n- Design checkout flows\n- Work with research\n\nWhat we're looking for\n- 5+ years of product design\n- Strong prototyping skills in Figma\n\nSend your application to careers@ledgerly.eu.`,
   job_is_remote: false,
   job_posted_at_datetime_utc: new Date(Date.now() - 2 * 86_400_000).toISOString(),
   job_location: "Rotterdam  •  via LinkedIn",

@@ -24,6 +24,11 @@ vi.mock("next/navigation", () => ({ useRouter: () => router }));
 vi.mock("next/link", () => ({ default: ({ href, ...props }: ComponentProps<"a">) => <a href={href} {...props} /> }));
 vi.mock("@/components/toast", () => ({ toast: vi.fn(), toastResult: (result: unknown) => result }));
 vi.mock("./actions", () => ({
+  addAutomatedSearch: vi.fn(),
+  changeAutomatedSearchPages: vi.fn(),
+  removeAutomatedSearch: vi.fn(),
+  runAutomatedSearchNow: vi.fn(),
+  toggleAutomatedSearch: vi.fn(),
   startApplicationFrom: vi.fn(),
   runJobSearch: vi.fn(),
   removeJobSearch: vi.fn(),

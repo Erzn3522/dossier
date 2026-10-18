@@ -1,6 +1,7 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { json, stubFetch } from "@/lib/ai/test-http";
+import { createAutomatedSearch, runAutomatedSearches } from "@/lib/automation/searches";
 import { clearJobSearchCache } from "@/lib/job-search/cache";
 import { EMPTY_QUERY, type FoundPosting } from "@/lib/job-search/search";
 import { encryptSecret, JOB_SOURCE_KEY } from "@/lib/secrets";
@@ -58,6 +59,20 @@ afterEach(() => vi.unstubAllGlobals());
 afterAll(() => prisma().$disconnect());
 
 describe("Find jobs actions", () => {
+  it("uses the saved number of pages for an automatic search", async () => {
+    let page = 0;
+    const requests = stubFetch(() => {
+      page += 1;
+      return json({ status: "OK", data: { jobs: [], cursor: page === 1 ? "PAGE-2" : null } });
+    });
+    const id = await createAutomatedSearch("Daily research", query, 2);
+
+    await expect(runAutomatedSearches({ searchId: id })).resolves.toEqual({ started: 0, skipped: false });
+    expect(requests).toHaveLength(2);
+    expect(requests[1].url.searchParams.get("cursor")).toBe("PAGE-2");
+    expect(await prisma().automatedSearch.findUniqueOrThrow({ where: { id } })).toMatchObject({ pagesPerRun: 2 });
+  });
+
   it("runs a search and keeps it, adds its next page, and removes it (E14-10)", async () => {
     stubFetch(() => json({ ...jsearchV2LastPage, data: { ...jsearchV2LastPage.data, cursor: "MORE" } }));
     const run = await runJobSearch({ query });

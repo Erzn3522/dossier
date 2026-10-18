@@ -52,9 +52,11 @@ export function route<Context = unknown>(
     context: Context,
     session: Session,
   ) => Promise<Response>,
+  options: { allowCrossSiteGet?: boolean } = {},
 ): (request: NextRequest, context: Context) => Promise<Response> {
   return async (request, context) => {
-    if (!isSameOrigin(request)) {
+    const allowedOAuthReturn = options.allowCrossSiteGet === true && request.method === "GET";
+    if (!allowedOAuthReturn && !isSameOrigin(request)) {
       return NextResponse.json({ error: messages.crossOrigin }, { status: 403 });
     }
     const session = await getSession();

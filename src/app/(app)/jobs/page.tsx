@@ -9,6 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { userTimeZone } from "@/lib/time-zone";
 
 import { JobsScreen } from "./jobs-screen";
+import { listAutomatedSearches } from "@/lib/automation/searches";
 
 export const metadata: Metadata = { title: "Find jobs" };
 
@@ -24,7 +25,9 @@ export default async function JobsPage({ searchParams }: PageProps<"/jobs">) {
   const view = viewFromParams(params);
   const typed = queryFromParams(params);
   const searchId = typeof params.search === "string" ? params.search : undefined;
-  const [config, timeZone, postingCounts, searches] = await Promise.all([loadJobSearchConfig(), userTimeZone(), countPostings(), countSearches()]);
+  const [config, timeZone, postingCounts, searches, automatedSearches] = await Promise.all([
+    loadJobSearchConfig(), userTimeZone(), countPostings(), countSearches(), listAutomatedSearches(),
+  ]);
   const now = new Date();
 
   const search = view === "search" && !typed ? await loadSearch(searchId, { timeZone, now }) : null;
@@ -46,6 +49,7 @@ export default async function JobsPage({ searchParams }: PageProps<"/jobs">) {
       history={history}
       counts={{ ...postingCounts, searches }}
       today={now.toISOString()}
+      automatedSearches={automatedSearches}
     />
   );
 }

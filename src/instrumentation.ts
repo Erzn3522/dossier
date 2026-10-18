@@ -14,9 +14,15 @@ export async function register() {
     const { startJobSweep } = await import("@/lib/jobs/retention");
     startJobSweep();
 
+    const { recoverInterruptedAutomations } = await import("@/lib/automation/searches");
+    await recoverInterruptedAutomations().catch((error: unknown) => logServerError("automation startup", error));
+
     // Nightly backups at 03:00, while they're switched on (E10-7).
     const { startBackupSchedule } = await import("@/lib/backup-schedule");
     startBackupSchedule();
+
+    const { startAutomationSchedule } = await import("@/lib/automation/schedule");
+    await startAutomationSchedule().catch((error: unknown) => logServerError("automation schedule", error));
 
     // Says what the usage ping sends and how to stop it, while it's on.
     const { USAGE_PING_NOTICE, usagePingEnabled } = await import("@/lib/usage-ping");

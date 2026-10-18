@@ -122,6 +122,12 @@ export const settingsSchema = z.object({
   latestVersionUrl: z.string().nullable().catch(null),
   updateCheckDay: z.string().nullable().catch(null),
   updateDismissed: z.string().nullable().catch(null),
+  // Automated search and review queue. Time is in the server's TZ.
+  automationEnabled: flag(false),
+  automationTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).catch("08:00"),
+  automationMatchThreshold: z.coerce.number().int().min(1).max(100).catch(70),
+  automationBlockCriticalGaps: flag(true),
+  automationProblem: z.string().nullable().catch(null),
   // The usage ping (usage-ping.ts): this install's random ID, made by its
   // first ping, and the UTC day of the last one. They belong to the install,
   // not its data, so exports leave them out (INSTALL_SETTINGS).
