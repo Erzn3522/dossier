@@ -6,6 +6,7 @@ import { z } from "zod";
 import { action, ActionError } from "@/lib/action";
 import { isEmailAddress } from "@/lib/application-email";
 import { MISSING_APPLICATION_EMAIL } from "@/lib/automation/filter";
+import { emailDiscoveryConfigured } from "@/lib/email-discovery/searxng";
 import { automationCandidateJobKey, prepareAutomationCandidateJob } from "@/lib/jobs/prepare-automation-candidate";
 import { findLatestJob, retryJob, startJob } from "@/lib/jobs/runner";
 import { GmailSendBlocked, markApplicationSent, sendApplicationEmail } from "@/lib/gmail/send-application";
@@ -39,6 +40,24 @@ export const provideAutomationRecipient = action(recipientSchema, async ({ candi
   await startJob(prepareAutomationCandidateJob, { candidateId }, { key: automationCandidateJobKey(candidateId) });
   refresh();
   toast("Email address saved. Application preparation was queued.");
+  return null;
+});
+
+export const searchForAutomationRecipient = action(z.object({ candidateId: z.string().min(1) }), async ({ candidateId }, { toast }) => {
+  if (!emailDiscoveryConfigured()) throw new ActionError("Configure SearXNG in Settings → Automation first.");
+  const updated = await prisma.automationCandidate.updateMany({
+    where: {
+      id: candidateId,
+      applicationId: null,
+      status: "FILTERED",
+      reason: MISSING_APPLICATION_EMAIL,
+    },
+    data: { status: "DISCOVERED", reason: null, error: null },
+  });
+  if (!updated.count) throw new ActionError("This item no longer needs an application email address.");
+  await startJob(prepareAutomationCandidateJob, { candidateId }, { key: automationCandidateJobKey(candidateId) });
+  refresh();
+  toast("Public email search queued.");
   return null;
 });
 

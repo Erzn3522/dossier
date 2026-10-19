@@ -35,6 +35,7 @@ const MAX_REDIRECTS = 5;
 const MIN_CHARACTERS = 200;
 
 export type FetchedPosting = { ok: true; text: string; source: "structured" | "page"; url: string } | { ok: false; error: string };
+type FetchedHtml = { ok: true; html: string; url: string } | { ok: false; error: string };
 
 // ─── Where requests may go ───────────────────────────────────────────────────
 
@@ -100,7 +101,7 @@ export const guardedLookup: LookupFunction = (hostname, options, callback) => {
 type Response = { status: number; headers: http.IncomingHttpHeaders; body: Buffer };
 
 /** One request, with the guarded lookup, a time limit and a size limit. */
-function request(url: URL, lookup: LookupFunction, timeoutMs: number): Promise<Response> {
+function request(url: URL, lookup: LookupFunction, timeoutMs: number, signal?: AbortSignal): Promise<Response> {
   return new Promise((resolve, reject) => {
     const client = url.protocol === "https:" ? https : http;
     const outgoing = client.get(
@@ -139,6 +140,10 @@ function request(url: URL, lookup: LookupFunction, timeoutMs: number): Promise<R
         stream.on("error", reject);
       },
     );
+    const cancel = () => outgoing.destroy(Object.assign(new Error("cancelled"), { code: "ECANCELLED" }));
+    if (signal?.aborted) cancel();
+    else signal?.addEventListener("abort", cancel, { once: true });
+    outgoing.on("close", () => signal?.removeEventListener("abort", cancel));
     outgoing.on("timeout", () => outgoing.destroy(Object.assign(new Error("timeout"), { code: "ETIMEDOUT" })));
     outgoing.on("error", reject);
   });
@@ -150,8 +155,39 @@ function request(url: URL, lookup: LookupFunction, timeoutMs: number): Promise<R
  */
 export async function fetchPosting(
   link: string,
-  { lookup = guardedLookup, timeoutMs = TIMEOUT_MS }: { lookup?: LookupFunction; timeoutMs?: number } = {},
+  { lookup = guardedLookup, timeoutMs = TIMEOUT_MS, signal }: { lookup?: LookupFunction; timeoutMs?: number; signal?: AbortSignal } = {},
 ): Promise<FetchedPosting> {
+  const page = await fetchHtmlPage(link, { lookup, timeoutMs, signal });
+  if (!page.ok) return page;
+  const posting = postingFromHtml(page.html);
+  if (!posting) return { ok: false, error: FETCH_MESSAGES.unreadable };
+  return { ok: true, ...posting, url: page.url };
+}
+
+/** A public page's visible text and mailto links, fetched with the posting fetcher's SSRF protections. */
+export async function fetchPublicPage(
+  link: string,
+  { lookup = guardedLookup, timeoutMs = TIMEOUT_MS, signal }: { lookup?: LookupFunction; timeoutMs?: number; signal?: AbortSignal } = {},
+): Promise<FetchedPosting> {
+  const page = await fetchHtmlPage(link, { lookup, timeoutMs, signal });
+  if (!page.ok) return page;
+  const root = parse(page.html, { blockTextElements: { script: false, style: false, noscript: false, pre: true } });
+  const mailto = root.querySelectorAll("a[href]").flatMap((anchor) => {
+    const href = anchor.getAttribute("href") ?? "";
+    if (!/^mailto:/i.test(href)) return [];
+    const address = href.replace(/^mailto:/i, "").split(/[?,;]/, 1)[0].trim();
+    return address ? [`Email link: ${address}`] : [];
+  });
+  for (const noise of root.querySelectorAll("script, style, noscript, template, svg, iframe")) noise.remove();
+  const text = [textOf(root.querySelector("body") ?? root), ...mailto].filter(Boolean).join("\n").trim();
+  if (!text) return { ok: false, error: FETCH_MESSAGES.unreadable };
+  return { ok: true, text, source: "page", url: page.url };
+}
+
+async function fetchHtmlPage(
+  link: string,
+  { lookup, timeoutMs, signal }: { lookup: LookupFunction; timeoutMs: number; signal?: AbortSignal },
+): Promise<FetchedHtml> {
   let url: URL;
   try {
     url = new URL(link);
@@ -171,11 +207,12 @@ export async function fetchPosting(
     let response: Response;
     try {
       response = await Promise.race([
-        request(url, lookup, timeoutMs),
+        request(url, lookup, timeoutMs, signal),
         new Promise<never>((_, reject) => setTimeout(() => reject(Object.assign(new Error("timeout"), { code: "ETIMEDOUT" })), Math.max(0, deadline - Date.now())).unref()),
       ]);
     } catch (error) {
       const code = (error as { code?: string }).code;
+      if (code === "ECANCELLED") throw error;
       if (code === "EPRIVATE") return { ok: false, error: FETCH_MESSAGES.privateAddress };
       if (code === "ETOOBIG") return { ok: false, error: FETCH_MESSAGES.tooBig };
       return { ok: false, error: FETCH_MESSAGES.unreachable };
@@ -191,9 +228,7 @@ export async function fetchPosting(
 
     const type = String(response.headers["content-type"] ?? "");
     if (type && !/text\/html|application\/xhtml\+xml|text\/plain/i.test(type)) return { ok: false, error: FETCH_MESSAGES.notPage };
-    const posting = postingFromHtml(decode(response.body, type));
-    if (!posting) return { ok: false, error: FETCH_MESSAGES.unreadable };
-    return { ok: true, ...posting, url: url.toString() };
+    return { ok: true, html: decode(response.body, type), url: url.toString() };
   }
 }
 

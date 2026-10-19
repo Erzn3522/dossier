@@ -4,6 +4,8 @@ import { PageHeader } from "@/components/page-header";
 import { emailParts } from "@/lib/application-email";
 import { extractedSchema, unitsSchema } from "@/lib/application-data";
 import { MISSING_APPLICATION_EMAIL } from "@/lib/automation/filter";
+import { emailDiscoverySchema } from "@/lib/email-discovery-data";
+import { emailDiscoveryConfigured } from "@/lib/email-discovery/searxng";
 import { gmailConnectionView } from "@/lib/gmail/client";
 import { prisma } from "@/lib/prisma";
 
@@ -35,6 +37,7 @@ export default async function ReviewPage() {
     const units = unitsSchema.safeParse(email?.units);
     const parts = units.success ? emailParts(units.data) : { to: "", subject: "", body: "" };
     const extracted = extractedSchema.safeParse(candidate.application?.extracted);
+    const discovery = emailDiscoverySchema.safeParse(candidate.emailDiscovery);
     return {
       id: candidate.id,
       applicationId: candidate.applicationId,
@@ -55,12 +58,15 @@ export default async function ReviewPage() {
       subject: parts.subject,
       body: parts.body,
       delivery: candidate.application?.emailDelivery?.status ?? null,
+      discoveredEmails: discovery.success ? discovery.data.candidates : [],
+      emailDiscoveryError: discovery.success ? discovery.data.error : null,
+      emailDiscoverySearched: discovery.success,
     };
   });
   return (
     <>
       <PageHeader title="Review" description="Check each prepared application. Nothing is sent until you approve that email." />
-      <ReviewQueue items={items} gmail={gmail} />
+      <ReviewQueue items={items} gmail={gmail} emailSearchConfigured={emailDiscoveryConfigured()} />
     </>
   );
 }

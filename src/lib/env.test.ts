@@ -48,6 +48,7 @@ describe("parseEnv", () => {
       DOSSIER_AI_URL: "http://ollama:11434",
       DOSSIER_AI_MODEL: "llama3.1:8b",
       DOSSIER_AI_KEY: "sk-test",
+      DOSSIER_SEARXNG_URL: "http://searxng:8080",
     });
     expect(env).toMatchObject({
       DOSSIER_DATA_DIR: "/srv/dossier",
@@ -56,6 +57,7 @@ describe("parseEnv", () => {
       DOSSIER_AI_URL: "http://ollama:11434",
       DOSSIER_AI_MODEL: "llama3.1:8b",
       DOSSIER_AI_KEY: "sk-test",
+      DOSSIER_SEARXNG_URL: "http://searxng:8080",
     });
   });
 
@@ -119,11 +121,13 @@ describe("parseEnv", () => {
         DOSSIER_BACKUP_RETENTION_DAYS: "two weeks",
         DOSSIER_AI_PROVIDER: "gemini",
         DOSSIER_AI_URL: "ftp://example.com",
+        DOSSIER_SEARXNG_URL: "file:///tmp/search",
       }),
     ).toEqual([
       'DOSSIER_BACKUP_RETENTION_DAYS must be a whole number of days (got "two weeks").',
       'DOSSIER_AI_PROVIDER must be one of local, openai, anthropic (got "gemini").',
       "DOSSIER_AI_URL must be an http:// or https:// URL.",
+      "DOSSIER_SEARXNG_URL must be an http:// or https:// URL.",
     ]);
     expect(problems({ ...valid, DOSSIER_BACKUP_RETENTION_DAYS: "0" })).toEqual([
       "DOSSIER_BACKUP_RETENTION_DAYS must be at least 1.",

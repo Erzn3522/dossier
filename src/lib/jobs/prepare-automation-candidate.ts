@@ -9,7 +9,9 @@ import { loadTaskOptions } from "@/lib/ai/task-options";
 import { extractPosting, matchRequirements, tailorResume, writeCoverLetter, writeEmail } from "@/lib/ai/tasks";
 import { calendarDay } from "@/lib/application-documents";
 import { emailParts } from "@/lib/application-email";
-import { automationEligibility } from "@/lib/automation/filter";
+import { automationEligibility, MISSING_APPLICATION_EMAIL } from "@/lib/automation/filter";
+import { discoverApplicationEmails } from "@/lib/email-discovery/discover";
+import { emailDiscoveryConfigured } from "@/lib/email-discovery/searxng";
 import { documentLanguage } from "@/lib/document-language";
 import { fullText } from "@/lib/job-search/find";
 import { isParagraph, newFrame, withFrame } from "@/lib/letter-frame";
@@ -74,6 +76,19 @@ export const prepareAutomationCandidateJob = defineJob({
         recipientOverride: candidate.recipientOverride,
       });
       if (!eligibility.eligible) {
+        if (eligibility.reason === MISSING_APPLICATION_EMAIL && emailDiscoveryConfigured()) {
+          await step("Looking for a public application email");
+          const discovery = await discoverApplicationEmails(
+            provider,
+            {
+              company: extraction.data.company ?? candidate.posting.company,
+              role: extraction.data.role ?? candidate.posting.title,
+              postingUrl: candidate.posting.url,
+            },
+            { ...options, signal },
+          );
+          await prisma.automationCandidate.update({ where: { id: candidateId }, data: { emailDiscovery: discovery } });
+        }
         await prisma.automationCandidate.update({
           where: { id: candidateId },
           data: {

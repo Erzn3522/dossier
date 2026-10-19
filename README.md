@@ -183,9 +183,10 @@ Dossier is configured with environment variables; everything else is set in the 
 | `DOSSIER_JSEARCH_KEY` | none | A JSearch key, from OpenWeb Ninja or RapidAPI. |
 | `DOSSIER_JSEARCH_HOST` | `openwebninja` | Where that key is from: `openwebninja` or `rapidapi`. |
 | `DOSSIER_ADZUNA_APP_ID`, `DOSSIER_ADZUNA_KEY` | none | Adzuna's app ID and key. |
+| `DOSSIER_SEARXNG_URL` | none | A private SearXNG address, e.g. `http://searxng:8080`, for finding public application emails when a posting has none. |
 | `DOSSIER_IMAGE` | `ghcr.io/aientech/dossier:latest` | The image to run. Set a version, e.g. `ghcr.io/aientech/dossier:v1.4.1`, to upgrade only when you choose. |
 | `DOSSIER_PORT` | `3000` | The port on the server (`127.0.0.1`) that Dossier listens on, for the reverse proxy. |
-| `COMPOSE_PROFILES` | none | `ai` runs Ollama as well (see [Local model with Ollama](#local-model-with-ollama)). |
+| `COMPOSE_PROFILES` | none | `ai` runs Ollama; `email-discovery` runs SearXNG. Use a comma between both. |
 
 Running the image without the Compose file? Set `DATABASE_URL` (`postgresql://user:password@host:5432/database`) instead of `POSTGRES_PASSWORD`, and mount a volume at `/data`, where nightly backups and zipped PDFs go.
 
@@ -230,6 +231,24 @@ The search starts from your profile's city, country and current role; change the
 ## Automated search and Gmail
 
 Under **Find jobs**, save one or more searches as automatic profiles. **Settings → Automation** controls the daily time and IANA time zone (08:00 UTC by default), the match threshold and mandatory language/experience filtering. Daylight-saving changes follow the selected zone automatically. Each profile can read 1–3 result pages per run (up to 10 postings and one JSearch API request per page). Eligible postings with an explicit application email address are prepared one at a time and appear under **Review**. Dossier never guesses an address and never sends a batch: each email needs its own confirmation.
+
+When SearXNG is configured, an otherwise eligible posting without an address triggers a public web search. Dossier reads a small number of result pages, extracts only addresses actually present on those pages, and asks the configured AI model to rank those candidates. It never asks the model to invent an address. Review shows every candidate with its source and confidence; you must choose one before Dossier prepares the application.
+
+To add the private SearXNG service to a production Compose installation, download its small configuration file, enable the profile and give Dossier its internal address:
+
+```bash
+mkdir -p docker
+curl -fsSL -o docker/searxng-settings.yml https://raw.githubusercontent.com/AienTech/dossier/main/docker/searxng-settings.yml
+```
+
+Then add or update these lines in `.env` (keep `ai` in the profile list when Compose also runs your Ollama):
+
+```env
+COMPOSE_PROFILES=ai,email-discovery
+DOSSIER_SEARXNG_URL=http://searxng:8080
+```
+
+SearXNG is not exposed on a host port. It is free software, but it sends the company and role search terms to the external search engines you enable in its configuration.
 
 To connect Gmail:
 
@@ -309,11 +328,11 @@ From 1.4, Dossier sends a usage ping (see [Privacy](#privacy)). If you'd rather 
 
 Everything you enter is kept in your PostgreSQL database and data directory. [PRIVACY.md](PRIVACY.md) has the details: what's kept and for how long, what deleting removes, everything that leaves your server and who receives it, and a note on the GDPR.
 
-- **AI:** with a local model, your profile, postings and documents never leave your server. A hosted provider receives what each task needs: the posting, your profile without contact details (no email, phone, address, date of birth or links), what you tell it about the application, and, when you refine, the drafts and your chat messages, though never a letter's sender or signature. Importing a resume sends its whole text, contact details included; the import page says so first. The notes you keep on an application are never sent. How long the provider keeps what it receives, and where it processes it, depend on its terms and your account.
+- **AI:** with a local model, your profile, postings and documents never leave your server. A hosted provider receives what each task needs: the posting, your profile without contact details (no email, phone, address, date of birth or links), what you tell it about the application, and, when you refine, the drafts and your chat messages, though never a letter's sender or signature. Email discovery sends only the company, role and public address evidence to the configured model. Importing a resume sends its whole text, contact details included; the import page says so first. The notes you keep on an application are never sent. How long the provider keeps what it receives, and where it processes it, depend on its terms and your account.
 - **Task data:** what an AI task was given and wrote (a posting being read, a resume's text, drafts you didn't turn into an application) is deleted after 24 hours, or as long as Settings → Your data says. Deleting an application deletes its task data at once.
 - **Usage ping:** on each day you use Dossier, your server sends `telemetry.dossier.aien.me` a random install ID and the version number, once, so the project knows how many installs are in use and how often. Nothing else is sent. Set `DOSSIER_TELEMETRY=off` to stop it. [PRIVACY.md](PRIVACY.md#usage-ping) says what the receiver keeps, for how long, and how to have it deleted.
 - **Update check:** once on each day you use Dossier, and when you press **Check for updates**, your server asks GitHub for the latest release, and sends nothing about you or your install. Switch the daily check off in Settings → About.
-- **When you ask for it:** Find jobs, off until you choose a source, sends the source what you search for and nothing from your profile. **Fetch** asks a job site for a posting's page, from your server.
+- **When you ask for it:** Find jobs, off until you choose a source, sends the source what you search for and nothing from your profile. **Fetch** asks a job site for a posting's page, from your server. Email discovery sends the company and role to SearXNG's enabled engines and fetches result pages from your server.
 - **No other tracking or analytics:** Dossier loads nothing from other sites (its Content-Security-Policy forbids it, and the ping comes from your server, not your browser), and Next.js telemetry is off in the image.
 
 ## Known limitations

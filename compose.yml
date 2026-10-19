@@ -68,7 +68,22 @@ services:
     volumes:
       - ollama:/root/.ollama
 
+  # Private metasearch for finding public application addresses. Start it
+  # with `docker compose --profile email-discovery up -d searxng` and set
+  # DOSSIER_SEARXNG_URL=http://searxng:8080.
+  searxng:
+    profiles: [email-discovery]
+    image: searxng/searxng:latest
+    restart: unless-stopped
+    environment:
+      SEARXNG_SECRET: ${DOSSIER_SECRET}
+      FORCE_OWNERSHIP: "false"
+    volumes:
+      - ./docker/searxng-settings.yml:/etc/searxng/settings.yml:ro
+      - searxng:/var/cache/searxng
+
 volumes:
   pgdata:
   node_modules:
   ollama:
+  searxng:

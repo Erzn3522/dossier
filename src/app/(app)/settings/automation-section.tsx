@@ -16,7 +16,7 @@ import { SettingsSectionIntro } from "./settings-screen";
 type State = { enabled: boolean; time: string; timeZone: string; threshold: number; blockCriticalGaps: boolean; problem: string | null };
 type Gmail = { configured: boolean; email: string | null; connectedAt: Date | null };
 
-export function AutomationSection({ initial, timeZones, gmail: initialGmail, gmailProblem }: { initial: State; timeZones: string[]; gmail: Gmail; gmailProblem: string | null }) {
+export function AutomationSection({ initial, timeZones, gmail: initialGmail, gmailProblem, emailDiscovery }: { initial: State; timeZones: string[]; gmail: Gmail; gmailProblem: string | null; emailDiscovery: boolean }) {
   const track = useTrackSave();
   const [state, setState] = useState(initial);
   const [gmail, setGmail] = useState(initialGmail);
@@ -55,6 +55,17 @@ export function AutomationSection({ initial, timeZones, gmail: initialGmail, gma
         <p className="text-meta text-muted">Daily time follows the selected zone, including daylight-saving changes.</p>
         <Toggle label="Block mandatory language/experience gaps" checked={state.blockCriticalGaps} onCheckedChange={(blockCriticalGaps) => change({ blockCriticalGaps })} />
         {state.problem && <p role="alert" className="text-sm text-error-strong">Last run: {state.problem}</p>}
+      </Card>
+      <Card className="flex flex-col items-start gap-3">
+        <div>
+          <h3 className="font-medium">Application email discovery</h3>
+          <p className="mt-1 text-sm text-muted">When an eligible posting has no address, Dossier can search public pages and ask your configured AI model to rank only the addresses it actually finds.</p>
+        </div>
+        {emailDiscovery ? (
+          <p className="text-sm"><strong>Configured.</strong> Every found address still needs your approval in Review.</p>
+        ) : (
+          <p className="text-sm text-muted">Not configured. Add DOSSIER_SEARXNG_URL and start the private SearXNG service.</p>
+        )}
       </Card>
       <Card className="flex flex-col items-start gap-4">
         <div>

@@ -590,6 +590,8 @@ model AutomationCandidate {
   matchTotal        Int?
   /// A recipient explicitly supplied by the user after the posting had no usable address.
   recipientOverride String?
+  /// Public application addresses found on the web, with their source pages and confidence (emailDiscoverySchema).
+  emailDiscovery    Json?
   reason            String?
   error             String?
   createdAt         DateTime                  @default(now())

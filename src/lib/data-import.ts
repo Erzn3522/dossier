@@ -177,6 +177,7 @@ export async function importExport(db: PrismaClient, data: DossierExport): Promi
           .map((candidate) => ({
             ...candidate,
             applicationId: candidate.applicationId && applicationIds.has(candidate.applicationId) ? candidate.applicationId : null,
+            emailDiscovery: json(candidate.emailDiscovery),
           })),
       });
     },

@@ -6,7 +6,8 @@
 #
 #   docker compose up -d
 #
-# Add COMPOSE_PROFILES=ai to .env to run Ollama for a local model as well.
+# Add COMPOSE_PROFILES=ai to run Ollama, email-discovery to run SearXNG,
+# or both comma-separated.
 
 services:
   db:
@@ -51,6 +52,7 @@ services:
       DOSSIER_JSEARCH_HOST: ${DOSSIER_JSEARCH_HOST:-}
       DOSSIER_ADZUNA_APP_ID: ${DOSSIER_ADZUNA_APP_ID:-}
       DOSSIER_ADZUNA_KEY: ${DOSSIER_ADZUNA_KEY:-}
+      DOSSIER_SEARXNG_URL: ${DOSSIER_SEARXNG_URL:-}
     # Only on the server itself: put a reverse proxy with HTTPS in front.
     ports:
       - "127.0.0.1:${DOSSIER_PORT:-3000}:3000"
@@ -71,7 +73,22 @@ services:
     volumes:
       - ollama:/root/.ollama
 
+  # Optional private metasearch used only by automated email discovery.
+  # Enable the `email-discovery` profile and set
+  # DOSSIER_SEARXNG_URL=http://searxng:8080.
+  searxng:
+    profiles: [email-discovery]
+    image: searxng/searxng:latest
+    restart: unless-stopped
+    environment:
+      SEARXNG_SECRET: ${DOSSIER_SECRET:?Set DOSSIER_SECRET in .env}
+      FORCE_OWNERSHIP: "false"
+    volumes:
+      - ./docker/searxng-settings.yml:/etc/searxng/settings.yml:ro
+      - searxng:/var/cache/searxng
+
 volumes:
   pgdata:
   data:
   ollama:
+  searxng:

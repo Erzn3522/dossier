@@ -1,0 +1,15 @@
+use_default_settings: true
+
+general:
+  debug: false
+  instance_name: "Dossier email discovery"
+
+search:
+  safe_search: 1
+  formats:
+    - html
+    - json
+
+server:
+  limiter: false
+  image_proxy: false

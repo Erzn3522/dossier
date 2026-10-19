@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { dismissAutomationCandidates, provideAutomationRecipient } from "./actions";
+import { dismissAutomationCandidates, provideAutomationRecipient, searchForAutomationRecipient } from "./actions";
 import { ReviewQueue } from "./review-queue";
 
 const router = vi.hoisted(() => ({ refresh: vi.fn() }));
@@ -19,6 +19,7 @@ vi.mock("./actions", () => ({
   markAutomationSent: vi.fn(),
   provideAutomationRecipient: vi.fn(),
   retryAutomationCandidate: vi.fn(),
+  searchForAutomationRecipient: vi.fn(),
 }));
 
 const item: ComponentProps<typeof ReviewQueue>["items"][number] = {
@@ -41,12 +42,16 @@ const item: ComponentProps<typeof ReviewQueue>["items"][number] = {
   subject: "",
   body: "",
   delivery: null,
+  discoveredEmails: [],
+  emailDiscoveryError: null,
+  emailDiscoverySearched: false,
 };
 
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(provideAutomationRecipient).mockResolvedValue({ ok: true, data: null, toast: "Preparation queued." });
   vi.mocked(dismissAutomationCandidates).mockResolvedValue({ ok: true, data: { dismissed: 2 }, toast: "2 review items dismissed." });
+  vi.mocked(searchForAutomationRecipient).mockResolvedValue({ ok: true, data: null, toast: "Public email search queued." });
 });
 
 describe("ReviewQueue automation issues", () => {
@@ -75,6 +80,36 @@ describe("ReviewQueue automation issues", () => {
       recipient: "jobs@example.com",
     }));
     expect(router.refresh).toHaveBeenCalled();
+  });
+
+  it("shows a discovered address with its source and only uses it after confirmation", async () => {
+    render(<ReviewQueue items={[{
+      ...item,
+      discoveredEmails: [{
+        email: "careers@example.com",
+        sourceUrl: "https://example.com/careers",
+        sourceTitle: "Example careers",
+        context: "Send applications to careers@example.com",
+        confidence: "HIGH",
+        reason: "The company careers page explicitly names this address for applications.",
+      }],
+    }]} gmail={{ configured: true, email: "sender@example.com" }} />);
+
+    expect(screen.getByText("careers@example.com")).toBeVisible();
+    expect(screen.getByText("High confidence")).toBeVisible();
+    expect(screen.getByRole("link", { name: /Example careers/ })).toHaveAttribute("href", "https://example.com/careers");
+    await userEvent.click(screen.getByRole("button", { name: "Use careers@example.com and prepare" }));
+
+    await waitFor(() => expect(provideAutomationRecipient).toHaveBeenCalledWith({
+      candidateId: "candidate-1",
+      recipient: "careers@example.com",
+    }));
+  });
+
+  it("can queue discovery for an existing missing-email review", async () => {
+    render(<ReviewQueue items={[item]} gmail={{ configured: true, email: "sender@example.com" }} emailSearchConfigured />);
+    await userEvent.click(screen.getByRole("button", { name: "Search public pages" }));
+    await waitFor(() => expect(searchForAutomationRecipient).toHaveBeenCalledWith({ candidateId: "candidate-1" }));
   });
 
   it("shows the total, filters by a match ceiling and sorts matching scores", async () => {

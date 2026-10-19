@@ -58,6 +58,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
           timeZones={supportedTimeZones(settings.automationTimeZone, "Europe/Ljubljana")}
           gmail={await gmailConnectionView()}
           gmailProblem={gmailProblem(params.gmail)}
+          emailDiscovery={Boolean(env.DOSSIER_SEARXNG_URL)}
         />
       ) : section === "data" ? (
         <DataSection

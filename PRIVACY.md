@@ -11,7 +11,7 @@ In short: everything you enter is kept in your own PostgreSQL database and data 
 | Your profile: basics with contact details, skills, languages, roles, education, and references with their email and phone | Database | You change or delete it |
 | Each application: the posting, what was read from it, the match, what you told the AI, its status history | Database | You delete the application |
 | Each application's resume, cover letter and email, every earlier version of them, the refine chat and your private notes | Database | You delete the application |
-| Postings you saved or dismissed in Find jobs, and your past searches with what they found | Database | You remove them. A posting stays, unlinked, when you delete the application made from it |
+| Postings you saved or dismissed in Find jobs, past searches, and public application emails found with their source pages | Database | You remove them. A posting stays, unlinked, when you delete the application made from it |
 | Task data: what each AI task was given and wrote, such as a posting being read, a resume's text and what was read from it, drafts you didn't turn into an application, and a rewrite kept for Undo | Database | The task's application is deleted, or it's older than **Keep task data for** (Settings → Your data: 1 hour, 24 hours, 7 days or 30 days; 24 hours by default), whichever comes first. A resume reading goes as soon as you merge, replace or choose another file |
 | Settings, and your API keys, encrypted with `DOSSIER_SECRET` | Database | You change them |
 | Nightly backups and the backup taken before each import: full exports, in plain JSON | Data directory, `backups` | `DOSSIER_BACKUP_RETENTION_DAYS`, 14 days by default |
@@ -33,6 +33,7 @@ Exports you download and database dumps you take are copies outside Dossier's re
 | A hosted AI provider (OpenAI-compatible or Anthropic) | Each AI task, while one is chosen in Settings → AI provider | See [below](#what-a-hosted-ai-provider-receives) |
 | The job source you chose (JSearch, Adzuna or the Bundesagentur für Arbeit) | Each search in Find jobs, which is off until you choose a source | What you search for: keywords, place, country, radius and filters. Nothing from your profile: it only fills in the form |
 | The site a posting is on | When you press **Fetch** on a new application, and for a Find jobs posting that came with only its start | A request for the posting's page, from your server, never to an address on your own network |
+| SearXNG's enabled search engines and result sites | When automated email discovery is configured and an otherwise eligible posting has no application address | The company and role as search terms; then requests for a limited number of public result pages, from your server |
 | GitHub | Once on each day Dossier is used, while **Check for updates daily** is on in Settings → About (it is by default), and when you press **Check for updates** | A request for the latest release, from your server. Nothing about you or your install, though GitHub sees your server's address, as with any request |
 | `telemetry.dossier.aien.me` | Once on each day Dossier is used, unless `DOSSIER_TELEMETRY=off` | A random install ID and the version number. See [Usage ping](#usage-ping) |
 
@@ -44,6 +45,7 @@ Nothing else is sent. Your browser loads nothing from other sites (the Content-S
 |---|---|
 | Reading a posting | The posting's text, up to 20,000 characters |
 | Matching it against your profile | The posting's requirements, and the names of your skills and languages |
+| Ranking public application emails | The company, role, and addresses with short surrounding excerpts and their public source URLs. No profile data |
 | Writing the resume, cover letter and email | Your profile without contact details: your name, headline, city and country, summary, skills, languages, roles with their companies, dates and bullet points, and education. Also the job's details and the match, the letter's tone, and what you told the AI about the application. The email also gets the posting and the letter's paragraphs |
 | Rewriting a part, or refining in the chat | The same, with the drafts (never a letter's sender or signature) and, in the chat, your request and the recent messages before it |
 | Importing a resume | The whole text of the file, contact details and references included. The import page says so first |

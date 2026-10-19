@@ -5,7 +5,7 @@ import { gzipSync } from "node:zlib";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { FETCH_MESSAGES, fetchPosting, guardedLookup, isPublicAddress, postingFromHtml } from "./posting-fetch";
+import { FETCH_MESSAGES, fetchPosting, fetchPublicPage, guardedLookup, isPublicAddress, postingFromHtml } from "./posting-fetch";
 
 const DESCRIPTION = "We're looking for a senior product designer to own our payout flows end to end. ".repeat(4);
 
@@ -78,6 +78,8 @@ describe("fetchPosting (E7-8)", () => {
           return response.writeHead(302, { location: "/loop" }).end();
         case "/pdf":
           return response.writeHead(200, { "content-type": "application/pdf" }).end("%PDF-");
+        case "/contact":
+          return response.writeHead(200, { "content-type": "text/html" }).end('<html><body><main>Careers</main><footer><a href="mailto:jobs@example.com?subject=Application">Apply by email</a></footer></body></html>');
         case "/huge":
           response.writeHead(200, { "content-type": "text/html" });
           for (let i = 0; i < 300; i++) response.write("x".repeat(10_000));
@@ -107,6 +109,12 @@ describe("fetchPosting (E7-8)", () => {
     expect(await fetchPosting(`${base}/pdf`, { lookup })).toEqual({ ok: false, error: FETCH_MESSAGES.notPage });
     expect(await fetchPosting(`${base}/huge`, { lookup })).toEqual({ ok: false, error: FETCH_MESSAGES.tooBig });
     expect(await fetchPosting(`${base}/slow`, { lookup, timeoutMs: 300 })).toEqual({ ok: false, error: FETCH_MESSAGES.unreachable });
+  });
+
+  it("reads visible text and mailto addresses from a public contact page", async () => {
+    const result = await fetchPublicPage(`${base}/contact`, { lookup });
+    expect(result).toMatchObject({ ok: true, source: "page", url: `${base}/contact` });
+    if (result.ok) expect(result.text).toContain("Email link: jobs@example.com");
   });
 
   it("never goes to the server's own network, however the address is written", async () => {

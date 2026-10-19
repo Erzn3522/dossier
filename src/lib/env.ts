@@ -121,6 +121,13 @@ const schema = z.object({
   ),
   DOSSIER_ADZUNA_APP_ID: optional(z.string()),
   DOSSIER_ADZUNA_KEY: optional(z.string()),
+  // Optional self-hosted SearXNG used to find public application addresses.
+  DOSSIER_SEARXNG_URL: optional(
+    z.url({
+      protocol: /^https?$/,
+      error: "DOSSIER_SEARXNG_URL must be an http:// or https:// URL.",
+    }),
+  ),
   // Gmail OAuth is optional. Settings explains which values are missing.
   DOSSIER_PUBLIC_URL: optional(z.url({ protocol: /^https?$/, error: "DOSSIER_PUBLIC_URL must be an http:// or https:// URL." })),
   DOSSIER_GOOGLE_CLIENT_ID: optional(z.string()),

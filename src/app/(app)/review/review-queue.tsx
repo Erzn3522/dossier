@@ -10,6 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import type { DiscoveredEmail } from "@/lib/email-discovery-data";
 
 import {
   approveAndSend,
@@ -20,6 +21,7 @@ import {
   markAutomationSent,
   provideAutomationRecipient,
   retryAutomationCandidate,
+  searchForAutomationRecipient,
 } from "./actions";
 
 type Item = {
@@ -42,9 +44,12 @@ type Item = {
   subject: string;
   body: string;
   delivery: string | null;
+  discoveredEmails: DiscoveredEmail[];
+  emailDiscoveryError: string | null;
+  emailDiscoverySearched: boolean;
 };
 
-export function ReviewQueue({ items, gmail }: { items: Item[]; gmail: { configured: boolean; email: string | null } }) {
+export function ReviewQueue({ items, gmail, emailSearchConfigured = false }: { items: Item[]; gmail: { configured: boolean; email: string | null }; emailSearchConfigured?: boolean }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [sending, setSending] = useState<Item | null>(null);
@@ -215,7 +220,54 @@ export function ReviewQueue({ items, gmail }: { items: Item[]; gmail: { configur
           )}
           {item.canProvideRecipient && (
             <div className="mt-4 rounded-control border border-line-field p-4">
-              <p className="mb-3 text-sm text-muted">Found a verified application address yourself? Add it here and Dossier will prepare this application for review.</p>
+              {item.discoveredEmails.length > 0 && (
+                <div className="mb-5">
+                  <p className="font-medium">Public application emails found</p>
+                  <p className="mt-1 text-sm text-muted">Check the source before choosing one. Dossier found these addresses on public pages; it did not generate them.</p>
+                  <ul className="mt-3 grid gap-3">
+                    {item.discoveredEmails.map((candidate) => (
+                      <li key={candidate.email} className="rounded-control border border-line-field bg-input p-3">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="break-all font-medium">{candidate.email}</p>
+                            <p className="mt-1 text-xs font-medium text-muted">{confidenceLabel(candidate.confidence)}</p>
+                            <p className="mt-2 text-sm text-muted">{candidate.reason}</p>
+                            <a href={candidate.sourceUrl} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-sm underline">
+                              {candidate.sourceTitle || "Open source"}<span aria-hidden> ↗</span><span className="sr-only"> (opens in a new tab)</span>
+                            </a>
+                          </div>
+                          <Button
+                            size="sm"
+                            disabled={pending}
+                            aria-label={`Use ${candidate.email} and prepare`}
+                            onClick={() => run(() => provideAutomationRecipient({ candidateId: item.id, recipient: candidate.email }))}
+                          >
+                            Use this email
+                          </Button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {item.emailDiscoveryError && <p role="alert" className="mb-4 rounded-control bg-danger-soft p-3 text-sm text-error-strong">Email search: {item.emailDiscoveryError}</p>}
+              {item.emailDiscoverySearched && item.discoveredEmails.length === 0 && !item.emailDiscoveryError && (
+                <p className="mb-4 rounded-control bg-selected p-3 text-sm text-muted">No public application email was found in the pages Dossier checked.</p>
+              )}
+              {emailSearchConfigured && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="mb-4"
+                  disabled={pending}
+                  onClick={() => run(() => searchForAutomationRecipient({ candidateId: item.id }))}
+                >
+                  {item.emailDiscoverySearched ? "Search public pages again" : "Search public pages"}
+                </Button>
+              )}
+              <p className="mb-3 text-sm text-muted">
+                {item.discoveredEmails.length > 0 ? "Or enter another verified application address." : "Found a verified application address yourself? Add it here and Dossier will prepare this application for review."}
+              </p>
               <div className="flex flex-wrap items-end gap-3">
                 <Input
                   className="min-w-[260px] flex-1"
@@ -288,4 +340,10 @@ export function ReviewQueue({ items, gmail }: { items: Item[]; gmail: { configur
       />
     </div>
   );
+}
+
+function confidenceLabel(confidence: DiscoveredEmail["confidence"]): string {
+  if (confidence === "HIGH") return "High confidence";
+  if (confidence === "MEDIUM") return "Medium confidence";
+  return "Low confidence";
 }

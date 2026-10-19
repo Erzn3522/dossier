@@ -35,10 +35,10 @@ import { appVersion } from "@/lib/version";
 // and built-in themes stay behind: they belong to the server, not the user.
 
 export const EXPORT_FORMAT = "dossier-export";
-/** Bump when the file's shape changes; imports refuse versions they don't know. 2 added Find jobs' postings and keys (E14-9). */
-export const EXPORT_SCHEMA_VERSION = 3;
+/** Bump when the file's shape changes; imports refuse versions they don't know. 4 added automated email discovery evidence. */
+export const EXPORT_SCHEMA_VERSION = 4;
 /** The versions imports can read. */
-export const EXPORT_SCHEMA_VERSIONS: readonly number[] = [1, 2, 3];
+export const EXPORT_SCHEMA_VERSIONS: readonly number[] = [1, 2, 3, 4];
 
 /** The setting that holds the encrypted API key, which only this server can read. */
 const API_KEY_SETTING = "apiKeyEnc";
@@ -240,6 +240,7 @@ const automationCandidate = z.object({
   matchHit: int.nullable(),
   matchTotal: int.nullable(),
   recipientOverride: text.nullable().default(null),
+  emailDiscovery: z.unknown().nullable().default(null),
   reason: text.nullable(),
   error: text.nullable(),
   createdAt: date,
@@ -249,7 +250,7 @@ const automationCandidate = z.object({
 /** An export file as read back (E10-6). */
 export const exportSchema = z.object({
   format: z.literal(EXPORT_FORMAT),
-  schemaVersion: z.literal([1, 2, 3]),
+  schemaVersion: z.literal([1, 2, 3, 4]),
   appVersion: text,
   exportedAt: date,
   profile: z.object({
