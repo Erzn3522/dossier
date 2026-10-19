@@ -3,9 +3,11 @@ import { NextResponse } from "next/server";
 
 import { JobStatus } from "@/generated/prisma/enums";
 import { writeBackup } from "@/lib/backups";
+import { startAutomationSchedule } from "@/lib/automation/schedule";
 import { currentSummary, importExport, parseExport, summarizeExport } from "@/lib/data-import";
 import { IMPORT_MAX_BYTES, IMPORT_TOO_BIG } from "@/lib/import-limits";
 import { cancelJob } from "@/lib/jobs/runner";
+import { startOutreachSchedule } from "@/lib/outreach/schedule";
 import { prisma } from "@/lib/prisma";
 import { route } from "@/lib/route";
 
@@ -35,6 +37,7 @@ export const POST = route(async (request) => {
 
   const backup = await writeBackup("before-import");
   await importExport(prisma, parsed.data);
+  await Promise.all([startAutomationSchedule(true), startOutreachSchedule(true)]);
   revalidatePath("/", "layout");
   return NextResponse.json({ incoming, backup });
 });

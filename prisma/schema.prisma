@@ -216,6 +216,152 @@ model Theme {
   updatedAt    DateTime     @updatedAt
 }
 
+// ─── Computer-vision cold outreach ─────────────────────────────────────────
+
+enum OutreachRunStatus {
+  RUNNING
+  COMPLETE
+  FAILED
+}
+
+enum OutreachLeadStatus {
+  DISCOVERED
+  RESEARCHING
+  FILTERED
+  READY
+  APPROVED
+  QUEUED
+  SENDING
+  SENT
+  FAILED
+  UNKNOWN
+  DISMISSED
+  SUPPRESSED
+}
+
+enum OutreachDeliveryStatus {
+  SENDING
+  SENT
+  FAILED
+  UNKNOWN
+}
+
+enum OutreachSuppressionKind {
+  EMAIL
+  DOMAIN
+}
+
+/// A reusable description of the companies and opportunities to look for.
+model OutreachCampaign {
+  id                String   @id @default(cuid())
+  name              String
+  enabled           Boolean  @default(true)
+  keywords          String[]
+  countries         String[]
+  remote            Boolean  @default(true)
+  targetRole        String
+  opportunity       String
+  pitch             String
+  cta               String
+  language          String   @default("English")
+  fitThreshold      Int      @default(70)
+  dailyDiscoveryLimit Int    @default(10)
+  lastRunAt         DateTime?
+  runs              OutreachRun[]
+  leads             OutreachLead[]
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([enabled])
+}
+
+model OutreachRun {
+  id         String            @id @default(cuid())
+  campaignId String
+  campaign   OutreachCampaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  status     OutreachRunStatus @default(RUNNING)
+  found      Int               @default(0)
+  qualified  Int               @default(0)
+  prepared   Int               @default(0)
+  filtered   Int               @default(0)
+  failed     Int               @default(0)
+  error      String?
+  leads      OutreachLead[]
+  startedAt  DateTime          @default(now())
+  finishedAt DateTime?
+  updatedAt  DateTime          @updatedAt
+
+  @@index([campaignId, startedAt])
+  @@index([status])
+}
+
+/// One company, globally unique by normalized domain across every campaign.
+model OutreachLead {
+  id               String             @id @default(cuid())
+  campaignId       String
+  campaign         OutreachCampaign   @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  runId            String?
+  run              OutreachRun?       @relation(fields: [runId], references: [id], onDelete: SetNull)
+  companyName      String             @default("")
+  domain           String             @unique
+  website          String
+  research         Json?
+  researchedWith   String?
+  fitScore         Int?
+  fitReason        String?
+  contacts         Json?
+  rankedWith       String?
+  selectedEmail    String?
+  selectedName     String?
+  selectedTitle    String?
+  contactSourceUrl String?
+  emailSubject     String?
+  emailBody        String?
+  emailWrittenWith String?
+  resumeUnits      Json?
+  resumeWrittenWith String?
+  status           OutreachLeadStatus @default(DISCOVERED)
+  error            String?
+  approvedAt       DateTime?
+  queuedFor        DateTime?
+  sentAt           DateTime?
+  dismissedAt      DateTime?
+  delivery         OutreachDelivery?
+  jobs             Job[]
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  @@index([campaignId, status])
+  @@index([runId, status])
+  @@index([status, queuedFor])
+}
+
+model OutreachDelivery {
+  id             String                 @id @default(cuid())
+  leadId         String                 @unique
+  lead           OutreachLead           @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  status         OutreachDeliveryStatus @default(SENDING)
+  recipient      String
+  subject        String
+  gmailMessageId String?
+  error          String?
+  attemptedAt    DateTime               @default(now())
+  sentAt         DateTime?
+  updatedAt      DateTime               @updatedAt
+
+  @@index([status])
+}
+
+model OutreachSuppression {
+  id        String                      @id @default(cuid())
+  kind      OutreachSuppressionKind
+  value     String                      @unique @db.Citext
+  reason    String                      @default("")
+  createdAt DateTime                    @default(now())
+
+  @@index([kind])
+}
+
 enum AiProvider {
   /// Ollama or llama.cpp on the user's own hardware.
   LOCAL
@@ -672,6 +818,9 @@ model Job {
   /// The application it works on, if any: deleting the application deletes the job.
   applicationId String?
   application   Application? @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  /// The outreach lead it researches or prepares, if any.
+  outreachLeadId String?
+  outreachLead   OutreachLead? @relation(fields: [outreachLeadId], references: [id], onDelete: Cascade)
   status        JobStatus    @default(QUEUED)
   /// The named step in progress, e.g. "Reading the posting".
   step          String?
@@ -687,4 +836,5 @@ model Job {
   @@index([key, createdAt])
   @@index([status])
   @@index([applicationId])
+  @@index([outreachLeadId])
 }

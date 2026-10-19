@@ -2,9 +2,15 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { TailoredLetter, TailoredResume } from "@/components/documents/tailored-documents";
+import { ResumeDocument } from "@/components/documents/resume-document";
+import { unitsSchema } from "@/lib/application-data";
 import { loadDocuments } from "@/lib/application-documents";
 import { verifyPrintAccess } from "@/lib/pdf/print-access";
-import { printCss } from "@/lib/themes";
+import { prisma } from "@/lib/prisma";
+import { loadProfile } from "@/lib/profile-data";
+import { loadSettings } from "@/lib/settings-data";
+import { loadTheme } from "@/lib/theme-data";
+import { BUILT_IN_THEMES, printCss } from "@/lib/themes";
 
 export const metadata: Metadata = { title: "Tailored document", robots: { index: false } };
 
@@ -14,8 +20,24 @@ export const metadata: Metadata = { title: "Tailored document", robots: { index:
  */
 export default async function PrintTailoredDocumentPage({ params }: PageProps<"/print/[doc]/[id]">) {
   const { doc, id } = await params;
-  if (doc !== "resume" && doc !== "letter") notFound();
+  if (doc !== "resume" && doc !== "letter" && doc !== "outreach-resume") notFound();
   await verifyPrintAccess(`/print/${doc}/${id}`);
+  if (doc === "outreach-resume") {
+    const [lead, profile, settings] = await Promise.all([
+      prisma.outreachLead.findUnique({ where: { id }, select: { resumeUnits: true, campaign: { select: { language: true } } } }),
+      loadProfile(),
+      loadSettings(),
+    ]);
+    const units = unitsSchema.safeParse(lead?.resumeUnits);
+    if (!lead || !units.success) notFound();
+    const theme = (await loadTheme(settings.baseThemeId)) ?? BUILT_IN_THEMES[0];
+    return (
+      <>
+        <style>{printCss(theme, settings.paper)}</style>
+        <ResumeDocument theme={theme} profile={profile} paper={settings.paper} units={units.data} language={lead.campaign.language} includeReferences={false} />
+      </>
+    );
+  }
   const { application, profile, settings, resume, letter, includeReferences, letterDate } = await loadDocuments(id);
   const document = doc === "resume" ? resume : letter;
   if (!document) notFound();

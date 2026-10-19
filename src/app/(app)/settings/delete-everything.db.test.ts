@@ -75,9 +75,12 @@ describe("deleteEverything (E10-8)", () => {
       prisma().setting.count(),
       prisma().job.count(),
       prisma().theme.count({ where: { builtIn: false } }),
+      prisma().outreachLead.count(),
+      prisma().outreachSuppression.count(),
     ]);
-    expect(counts).toEqual([0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    expect(counts).toEqual([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
     expect(await prisma().theme.count({ where: { builtIn: true } })).toBe(12);
+    expect(await prisma().outreachCampaign.findMany({ select: { id: true } })).toEqual([{ id: "default-computer-vision" }]);
     expect(await readdir(dataDir.path)).toEqual([]);
   });
 

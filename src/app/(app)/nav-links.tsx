@@ -21,6 +21,7 @@ const NAV: NavItem[] = [
   { href: "/resume", label: "Base resume" },
   { href: "/jobs", label: "Find jobs" },
   { href: "/review", label: "Review" },
+  { href: "/outreach", label: "Outreach" },
   {
     href: "/applications",
     label: "Applications",

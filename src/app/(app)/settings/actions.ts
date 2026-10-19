@@ -25,6 +25,7 @@ import { isTimeZone } from "@/lib/time-zones";
 import { startAutomationSchedule } from "@/lib/automation/schedule";
 import { gmailConnection, gmailConnectionView } from "@/lib/gmail/client";
 import { gmailOAuthConfig } from "@/lib/gmail/config";
+import { createDefaultOutreachCampaign } from "@/lib/outreach/defaults";
 import { GmailScopeMissing, refreshAccessToken, revokeToken } from "@/lib/gmail/oauth";
 
 import { seedBuiltIns } from "../../../../prisma/seed/built-ins";
@@ -256,6 +257,9 @@ export const deleteEverything = action(z.object({ confirm: z.literal("DELETE") }
   await prisma.$transaction(async (tx) => {
     await tx.job.deleteMany();
     await tx.gmailConnection.deleteMany();
+    await tx.outreachSuppression.deleteMany();
+    await tx.outreachLead.deleteMany();
+    await tx.outreachCampaign.deleteMany();
     await tx.automatedSearch.deleteMany();
     // Find jobs' postings and past searches (E14-9, E14-10).
     await tx.posting.deleteMany();
@@ -273,6 +277,7 @@ export const deleteEverything = action(z.object({ confirm: z.literal("DELETE") }
   });
   // An empty profile and default settings need no rows; the built-in themes do.
   await seedBuiltIns(prisma);
+  await createDefaultOutreachCampaign(prisma);
   await Promise.all([deleteAllBackups(), deleteAllDownloads()]);
 
   revalidatePath("/", "layout");

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { nextAutomationRun } from "./schedule";
+import { dayBoundsIn, nextAutomationRun } from "./schedule";
 
 describe("nextAutomationRun", () => {
   it("uses the selected zone and advances after the configured time", () => {
@@ -12,5 +12,12 @@ describe("nextAutomationRun", () => {
 
   it("follows daylight-saving changes in the selected zone", () => {
     expect(nextAutomationRun(new Date("2026-10-24T08:00:00Z"), "08:00", "Europe/Ljubljana")).toEqual(new Date("2026-10-25T07:00:00Z"));
+  });
+
+  it("uses local calendar-day boundaries for daily outreach limits", () => {
+    expect(dayBoundsIn(new Date("2026-10-19T12:00:00Z"), "Europe/Ljubljana")).toEqual({
+      start: new Date("2026-10-18T22:00:00Z"),
+      end: new Date("2026-10-19T22:00:00Z"),
+    });
   });
 });

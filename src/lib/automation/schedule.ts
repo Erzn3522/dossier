@@ -42,6 +42,20 @@ function instantIn(parts: DateParts, timeZone: string): Date | null {
   return Object.entries(parts).every(([key, value]) => shown[key as keyof DateParts] === value) ? candidate : null;
 }
 
+/** The current local calendar day's half-open instant range in an IANA time zone. */
+export function dayBoundsIn(now: Date, timeZone: string): { start: Date; end: Date } {
+  const local = partsIn(now, timeZone);
+  const day = Date.UTC(local.year, local.month - 1, local.day);
+  const atMidnight = (offset: number) => {
+    const date = new Date(day + offset * 86_400_000);
+    return instantIn({ year: date.getUTCFullYear(), month: date.getUTCMonth() + 1, day: date.getUTCDate(), hour: 0, minute: 0 }, timeZone);
+  };
+  const start = atMidnight(0);
+  const end = atMidnight(1);
+  if (!start || !end) throw new Error(`Could not find today's boundaries in ${timeZone}.`);
+  return { start, end };
+}
+
 /** Next HH:MM in the selected IANA time zone, including daylight-saving changes. */
 export function nextAutomationRun(now: Date, time: string, timeZone: string): Date {
   const [hour, minute] = time.split(":").map(Number);

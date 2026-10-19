@@ -130,6 +130,13 @@ export const settingsSchema = z.object({
   automationMatchThreshold: z.coerce.number().int().min(1).max(100).catch(70),
   automationBlockCriticalGaps: flag(true),
   automationProblem: z.string().nullable().catch(null),
+  // Cold outreach stays inert until the user explicitly acknowledges and enables it.
+  outreachEnabled: flag(false),
+  outreachAcknowledged: flag(false),
+  outreachTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).catch("09:00"),
+  outreachTimeZone: z.string().trim().refine(isTimeZone).catch(DEFAULT_AUTOMATION_TIME_ZONE),
+  outreachDailySendLimit: z.coerce.number().int().min(1).max(5).catch(5),
+  outreachProblem: z.string().nullable().catch(null),
   // The usage ping (usage-ping.ts): this install's random ID, made by its
   // first ping, and the UTC day of the last one. They belong to the install,
   // not its data, so exports leave them out (INSTALL_SETTINGS).

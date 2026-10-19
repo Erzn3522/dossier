@@ -153,6 +153,32 @@ describe("importExport (E10-6)", () => {
     });
   });
 
+  it("round-trips outreach evidence, delivery history and suppressions without Gmail tokens", async () => {
+    const campaign = await prisma().outreachCampaign.create({ data: {
+      name: "Vision companies", enabled: true, keywords: ["computer vision"], countries: ["Europe"], remote: true,
+      targetRole: "Vision Engineer", opportunity: "Employment", pitch: "Relevant experience", cta: "Short call", language: "English", fitThreshold: 70, dailyDiscoveryLimit: 10,
+    } });
+    const run = await prisma().outreachRun.create({ data: { campaignId: campaign.id, status: "COMPLETE", found: 1, qualified: 1, prepared: 1, finishedAt: now } });
+    const lead = await prisma().outreachLead.create({ data: {
+      campaignId: campaign.id, runId: run.id, companyName: "Vision Co", domain: "vision.example", website: "https://vision.example/", status: "SENT", fitScore: 90,
+      research: { pages: [{ url: "https://vision.example/", excerpt: "Vision systems", collectedAt: now.toISOString() }] }, contacts: [{ email: "talent@vision.example" }],
+      selectedEmail: "talent@vision.example", emailSubject: "Vision role", emailBody: "Hello", resumeUnits: [{ id: "summary", label: "Summary", text: "Profile" }], sentAt: now,
+    } });
+    await prisma().outreachDelivery.create({ data: { leadId: lead.id, status: "SENT", recipient: "talent@vision.example", subject: "Vision role", gmailMessageId: "gmail-1", sentAt: now } });
+    await prisma().outreachSuppression.create({ data: { kind: "DOMAIN", value: "other.example", reason: "Not relevant" } });
+
+    const file = await asFile();
+    await prisma().outreachLead.deleteMany();
+    await prisma().outreachCampaign.deleteMany();
+    await prisma().outreachSuppression.deleteMany();
+    await importExport(prisma(), file);
+
+    expect(await prisma().outreachLead.findUniqueOrThrow({ where: { domain: "vision.example" } })).toMatchObject({ selectedEmail: "talent@vision.example", status: "SENT" });
+    expect(await prisma().outreachDelivery.findUniqueOrThrow({ where: { leadId: lead.id } })).toMatchObject({ gmailMessageId: "gmail-1", status: "SENT" });
+    expect(await prisma().outreachSuppression.findUniqueOrThrow({ where: { value: "other.example" } })).toMatchObject({ kind: "DOMAIN" });
+    expect(JSON.stringify(file)).not.toContain("refreshTokenEnc");
+  });
+
   it("reads version 1 files, which have no postings", async () => {
     const file = JSON.parse(JSON.stringify(await buildExport(prisma(), { now })));
     const parsed = parseExport(JSON.stringify({ ...file, schemaVersion: 1, postings: undefined, searches: undefined }));

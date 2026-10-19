@@ -53,6 +53,18 @@ async function renderRequested(request: NextRequest): Promise<{ pdf: Uint8Array;
     };
   }
 
+  if (doc === "outreach-resume") {
+    const id = params.get("lead") ?? "";
+    const lead = APPLICATION_ID.test(id)
+      ? await prisma.outreachLead.findUnique({ where: { id }, select: { companyName: true, resumeUnits: true, campaign: { select: { targetRole: true } } } })
+      : null;
+    if (!lead?.resumeUnits) return notFound("That outreach lead has no tailored CV.");
+    return {
+      pdf: await renderPdf(`/print/outreach-resume/${id}`),
+      fileName: resolveFileName(settings.fileNamePattern, { name, company: lead.companyName, role: lead.campaign.targetRole, doc: DocumentKind.RESUME, date }),
+    };
+  }
+
   if (doc !== "resume" && doc !== "letter") return notFound("There's no such document to download.");
   const id = params.get("application") ?? "";
   const application = APPLICATION_ID.test(id)

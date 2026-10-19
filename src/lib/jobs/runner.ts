@@ -110,7 +110,7 @@ export function isFinished(job: Pick<JobView, "status">): boolean {
 export async function startJob<I, R>(
   definition: JobDefinition<I, R>,
   input: NoInfer<I>,
-  options: { key?: string; applicationId?: string } = {},
+  options: { key?: string; applicationId?: string; outreachLeadId?: string } = {},
 ): Promise<string> {
   defineJob(definition);
   const job = await prisma.job.create({
@@ -118,6 +118,7 @@ export async function startJob<I, R>(
       type: definition.type,
       key: options.key,
       applicationId: options.applicationId,
+      outreachLeadId: options.outreachLeadId,
       input: definition.input.parse(input) as Prisma.InputJsonValue,
     },
     select: { id: true },

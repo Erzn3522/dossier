@@ -10,3 +10,14 @@ export { REGENERATE_UNIT_VERSION, regenerateUnit } from "./regenerate-unit";
 export { TAILOR_RESUME_VERSION, tailorResume } from "./tailor-resume";
 export { WRITE_COVER_LETTER_VERSION, writeCoverLetter } from "./write-cover-letter";
 export { WRITE_EMAIL_VERSION, writeEmail } from "./write-email";
+export {
+  ANALYZE_OUTREACH_COMPANY_VERSION,
+  RANK_OUTREACH_CONTACTS_VERSION,
+  TAILOR_OUTREACH_RESUME_VERSION,
+  WRITE_OUTREACH_EMAIL_VERSION,
+  analyzeOutreachCompany,
+  rankOutreachContacts,
+  tailorOutreachResume,
+  writeOutreachEmail,
+  type OutreachCompanyAnalysis,
+} from "./outreach";

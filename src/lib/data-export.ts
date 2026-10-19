@@ -17,6 +17,10 @@ import {
   HeadingStyle,
   LanguageLevel,
   PostingSource,
+  OutreachDeliveryStatus,
+  OutreachLeadStatus,
+  OutreachRunStatus,
+  OutreachSuppressionKind,
   SidebarStyle,
   ThemeAlign,
   ThemeFont,
@@ -35,10 +39,10 @@ import { appVersion } from "@/lib/version";
 // and built-in themes stay behind: they belong to the server, not the user.
 
 export const EXPORT_FORMAT = "dossier-export";
-/** Bump when the file's shape changes; imports refuse versions they don't know. 4 added automated email discovery evidence. */
-export const EXPORT_SCHEMA_VERSION = 4;
+/** Bump when the file's shape changes; imports refuse versions they don't know. 5 added cold outreach data. */
+export const EXPORT_SCHEMA_VERSION = 5;
 /** The versions imports can read. */
-export const EXPORT_SCHEMA_VERSIONS: readonly number[] = [1, 2, 3, 4];
+export const EXPORT_SCHEMA_VERSIONS: readonly number[] = [1, 2, 3, 4, 5];
 
 /** The setting that holds the encrypted API key, which only this server can read. */
 const API_KEY_SETTING = "apiKeyEnc";
@@ -247,10 +251,32 @@ const automationCandidate = z.object({
   updatedAt: date,
 });
 
+const outreachCampaign = z.object({
+  id: text, name: text, enabled: z.boolean(), keywords: z.array(text), countries: z.array(text), remote: z.boolean(),
+  targetRole: text, opportunity: text, pitch: text, cta: text, language: text, fitThreshold: int, dailyDiscoveryLimit: int,
+  lastRunAt: optionalDate, createdAt: date, updatedAt: date,
+});
+const outreachRun = z.object({
+  id: text, campaignId: text, status: z.enum(OutreachRunStatus), found: int, qualified: int, prepared: int, filtered: int, failed: int,
+  error: text.nullable(), startedAt: date, finishedAt: optionalDate, updatedAt: date,
+});
+const outreachLead = z.object({
+  id: text, campaignId: text, runId: text.nullable(), companyName: text, domain: text, website: text,
+  research: z.unknown().nullable(), researchedWith: text.nullable(), fitScore: int.nullable(), fitReason: text.nullable(),
+  contacts: z.unknown().nullable(), rankedWith: text.nullable(), selectedEmail: text.nullable(), selectedName: text.nullable(), selectedTitle: text.nullable(), contactSourceUrl: text.nullable(),
+  emailSubject: text.nullable(), emailBody: text.nullable(), emailWrittenWith: text.nullable(), resumeUnits: z.unknown().nullable(), resumeWrittenWith: text.nullable(),
+  status: z.enum(OutreachLeadStatus), error: text.nullable(), approvedAt: optionalDate, queuedFor: optionalDate, sentAt: optionalDate, dismissedAt: optionalDate,
+  createdAt: date, updatedAt: date,
+});
+const outreachDelivery = z.object({
+  id: text, leadId: text, status: z.enum(OutreachDeliveryStatus), recipient: text, subject: text, gmailMessageId: text.nullable(), error: text.nullable(), attemptedAt: date, sentAt: optionalDate, updatedAt: date,
+});
+const outreachSuppression = z.object({ id: text, kind: z.enum(OutreachSuppressionKind), value: text, reason: text, createdAt: date });
+
 /** An export file as read back (E10-6). */
 export const exportSchema = z.object({
   format: z.literal(EXPORT_FORMAT),
-  schemaVersion: z.literal([1, 2, 3, 4]),
+  schemaVersion: z.literal([1, 2, 3, 4, 5]),
   appVersion: text,
   exportedAt: date,
   profile: z.object({
@@ -275,6 +301,11 @@ export const exportSchema = z.object({
   automatedSearches: z.array(automatedSearch).default([]),
   automationRuns: z.array(automationRun).default([]),
   automationCandidates: z.array(automationCandidate).default([]),
+  outreachCampaigns: z.array(outreachCampaign).default([]),
+  outreachRuns: z.array(outreachRun).default([]),
+  outreachLeads: z.array(outreachLead).default([]),
+  outreachDeliveries: z.array(outreachDelivery).default([]),
+  outreachSuppressions: z.array(outreachSuppression).default([]),
 });
 export type DossierExport = z.infer<typeof exportSchema>;
 
@@ -296,7 +327,7 @@ export async function buildExport(
   { includeApiKey = false, now = new Date() }: { includeApiKey?: boolean; now?: Date } = {},
 ): Promise<DossierExport> {
   return db.$transaction(async (tx) => {
-    const [fields, skills, languages, experience, education, references, themes, settings, applications, postings, searches, automatedSearches, automationRuns, automationCandidates] = await Promise.all([
+    const [fields, skills, languages, experience, education, references, themes, settings, applications, postings, searches, automatedSearches, automationRuns, automationCandidates, outreachCampaigns, outreachRuns, outreachLeads, outreachDeliveries, outreachSuppressions] = await Promise.all([
       tx.profileField.findMany({ select: { key: true, value: true }, orderBy: { key: "asc" } }),
       tx.skill.findMany({ select: { id: true, name: true, sort: true, createdAt: true }, orderBy: { createdAt: "asc" } }),
       tx.language.findMany({ select: { id: true, name: true, level: true, sort: true, createdAt: true }, orderBy: { createdAt: "asc" } }),
@@ -323,6 +354,11 @@ export async function buildExport(
       tx.automatedSearch.findMany({ orderBy: { createdAt: "asc" } }),
       tx.automationRun.findMany({ orderBy: { startedAt: "asc" } }),
       tx.automationCandidate.findMany({ orderBy: { createdAt: "asc" } }),
+      tx.outreachCampaign.findMany({ orderBy: { createdAt: "asc" } }),
+      tx.outreachRun.findMany({ orderBy: { startedAt: "asc" } }),
+      tx.outreachLead.findMany({ orderBy: { createdAt: "asc" } }),
+      tx.outreachDelivery.findMany({ orderBy: { attemptedAt: "asc" } }),
+      tx.outreachSuppression.findMany({ orderBy: { createdAt: "asc" } }),
     ]);
 
     // Keys only when asked for, decrypted; one that's unreadable here too (DOSSIER_SECRET changed) has nothing to export.
@@ -365,6 +401,11 @@ export async function buildExport(
       automatedSearches,
       automationRuns,
       automationCandidates,
+      outreachCampaigns,
+      outreachRuns,
+      outreachLeads,
+      outreachDeliveries,
+      outreachSuppressions,
     };
   });
 }

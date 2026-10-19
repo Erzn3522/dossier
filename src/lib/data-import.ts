@@ -4,6 +4,7 @@ import { Prisma, type PrismaClient } from "@/generated/prisma/client";
 import { encryptApiKey } from "@/lib/ai/api-key";
 import { EXPORT_FORMAT, EXPORT_SCHEMA_VERSION, EXPORT_SCHEMA_VERSIONS, exportSchema, INSTALL_SETTINGS, SECRET_SETTINGS, type DossierExport } from "@/lib/data-export";
 import { encryptSecret, JOB_SOURCE_KEY } from "@/lib/secrets";
+import { createDefaultOutreachCampaign } from "@/lib/outreach/defaults";
 
 // Restoring from an export file (E10-6, SET-10): everything is replaced in
 // one transaction, so a failure changes nothing. The caller backs up the
@@ -75,7 +76,7 @@ const json = (value: unknown) => (value === null || value === undefined ? Prisma
  * install's own settings (the usage ping's) stay as they are.
  */
 export async function importExport(db: PrismaClient, data: DossierExport): Promise<void> {
-  const { profile, themes, settings, applications, postings, searches, automatedSearches, automationRuns, automationCandidates, apiKey, jobSourceKeys } = data;
+  const { profile, themes, settings, applications, postings, searches, automatedSearches, automationRuns, automationCandidates, outreachCampaigns, outreachRuns, outreachLeads, outreachDeliveries, outreachSuppressions, apiKey, jobSourceKeys } = data;
   const fromFile: Record<string, string | null> = {
     apiKeyEnc: apiKey ? encryptApiKey(apiKey) : null,
     jsearchKeyEnc: jobSourceKeys?.jsearch ? encryptSecret(JOB_SOURCE_KEY, jobSourceKeys.jsearch) : null,
@@ -89,6 +90,9 @@ export async function importExport(db: PrismaClient, data: DossierExport): Promi
       // for applications never created) hold the old data too.
       await tx.job.deleteMany();
       await tx.gmailConnection.deleteMany();
+      await tx.outreachSuppression.deleteMany();
+      await tx.outreachLead.deleteMany();
+      await tx.outreachCampaign.deleteMany();
       await tx.automatedSearch.deleteMany();
       await tx.posting.deleteMany();
       await tx.postingSearch.deleteMany();
@@ -180,6 +184,25 @@ export async function importExport(db: PrismaClient, data: DossierExport): Promi
             emailDiscovery: json(candidate.emailDiscovery),
           })),
       });
+      await tx.outreachCampaign.createMany({ data: outreachCampaigns });
+      const outreachCampaignIds = new Set(outreachCampaigns.map((campaign) => campaign.id));
+      const validOutreachRuns = outreachRuns.filter((run) => outreachCampaignIds.has(run.campaignId));
+      await tx.outreachRun.createMany({ data: validOutreachRuns });
+      const outreachRunIds = new Set(validOutreachRuns.map((run) => run.id));
+      const validOutreachLeads = outreachLeads.filter((lead) => outreachCampaignIds.has(lead.campaignId));
+      await tx.outreachLead.createMany({
+        data: validOutreachLeads.map((lead) => ({
+          ...lead,
+          runId: lead.runId && outreachRunIds.has(lead.runId) ? lead.runId : null,
+          research: json(lead.research),
+          contacts: json(lead.contacts),
+          resumeUnits: json(lead.resumeUnits),
+        })),
+      });
+      const outreachLeadIds = new Set(validOutreachLeads.map((lead) => lead.id));
+      await tx.outreachDelivery.createMany({ data: outreachDeliveries.filter((delivery) => outreachLeadIds.has(delivery.leadId)) });
+      await tx.outreachSuppression.createMany({ data: outreachSuppressions });
+      if (data.schemaVersion < 5 && outreachCampaigns.length === 0) await createDefaultOutreachCampaign(tx);
     },
     // A big export takes longer than the default five seconds.
     { timeout: 120_000, maxWait: 10_000 },

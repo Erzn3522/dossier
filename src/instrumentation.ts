@@ -24,6 +24,10 @@ export async function register() {
     const { startAutomationSchedule } = await import("@/lib/automation/schedule");
     await startAutomationSchedule().catch((error: unknown) => logServerError("automation schedule", error));
 
+    const { recoverInterruptedOutreach, startOutreachSchedule } = await import("@/lib/outreach/schedule");
+    await recoverInterruptedOutreach().catch((error: unknown) => logServerError("outreach startup", error));
+    await startOutreachSchedule().catch((error: unknown) => logServerError("outreach schedule", error));
+
     // Says what the usage ping sends and how to stop it, while it's on.
     const { USAGE_PING_NOTICE, usagePingEnabled } = await import("@/lib/usage-ping");
     if (usagePingEnabled()) console.log(USAGE_PING_NOTICE);
