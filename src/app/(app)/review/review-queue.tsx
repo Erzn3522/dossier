@@ -2,16 +2,19 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 
 import { toast } from "@/components/toast";
 import { Button, buttonClassName } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 
 import {
   approveAndSend,
   dismissAutomationCandidate,
+  dismissAutomationCandidates,
   dismissAutomationDraft,
   keepAutomationDraft,
   markAutomationSent,
@@ -45,38 +48,137 @@ export function ReviewQueue({ items, gmail }: { items: Item[]; gmail: { configur
   const router = useRouter();
   const [pending, start] = useTransition();
   const [sending, setSending] = useState<Item | null>(null);
+  const [confirmingDismiss, setConfirmingDismiss] = useState(false);
   const [recipients, setRecipients] = useState<Record<string, string>>({});
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-  const run = (work: () => Promise<{ ok: boolean; error?: string; toast?: string }>) =>
+  const [matchBelow, setMatchBelow] = useState("");
+  const [sort, setSort] = useState<"queue" | "lowest" | "highest">("queue");
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const visibleItems = useMemo(() => {
+    const threshold = matchBelow === "" ? null : Number(matchBelow);
+    const filtered = threshold === null || Number.isNaN(threshold)
+      ? items
+      : items.filter((item) => item.score !== null && item.score < threshold);
+    if (sort === "queue") return filtered;
+    return [...filtered].sort((left, right) => {
+      if (left.score === null) return right.score === null ? 0 : 1;
+      if (right.score === null) return -1;
+      return sort === "lowest" ? left.score - right.score : right.score - left.score;
+    });
+  }, [items, matchBelow, sort]);
+  const canDismiss = (item: Item) => item.status === "FAILED" || item.status === "FILTERED" || item.applicationId !== null;
+  const selectableVisible = visibleItems.filter(canDismiss);
+  const allVisibleSelected = selectableVisible.length > 0 && selectableVisible.every((item) => selected.has(item.id));
+  const run = (work: () => Promise<{ ok: boolean; error?: string; toast?: string }>, onSuccess?: () => void) =>
     start(async () => {
       const result = await work();
       if (!result.ok) toast(result.error ?? "Something went wrong.");
-      else if (result.toast) toast(result.toast);
+      else {
+        if (result.toast) toast(result.toast);
+        onSuccess?.();
+      }
       setSending(null);
       router.refresh();
     });
+  const toggleSelected = (id: string, checked: boolean) => setSelected((current) => {
+    const next = new Set(current);
+    if (checked) next.add(id);
+    else next.delete(id);
+    return next;
+  });
+  const toggleVisible = (checked: boolean) => setSelected((current) => {
+    const next = new Set(current);
+    for (const item of selectableVisible) {
+      if (checked) next.add(item.id);
+      else next.delete(item.id);
+    }
+    return next;
+  });
 
-  if (items.length === 0) return <p className="mx-14 rounded-panel border border-line-card bg-card p-7 text-sm text-muted">The review queue is empty.</p>;
+  if (items.length === 0) return (
+    <div className="mx-14 mb-16 grid gap-4">
+      <p className="text-sm font-medium">0 reviews waiting</p>
+      <p className="rounded-panel border border-line-card bg-card p-7 text-sm text-muted">The review queue is empty.</p>
+    </div>
+  );
   return (
     <div className="mx-14 mb-16 grid gap-4">
-      {items.map((item) => (
+      <section aria-label="Review controls" className="rounded-panel border border-line-card bg-card p-5">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="font-medium" aria-live="polite">
+              {items.length} {items.length === 1 ? "review" : "reviews"} waiting
+            </p>
+            <p className="mt-1 text-sm text-muted">
+              {visibleItems.length === items.length ? "Showing all reviews" : `Showing ${visibleItems.length} of ${items.length}`}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-end gap-3">
+            <Input
+              className="w-40"
+              label="Match below (%)"
+              type="number"
+              min="1"
+              max="100"
+              inputMode="numeric"
+              placeholder="All"
+              value={matchBelow}
+              onChange={(event) => setMatchBelow(event.target.value)}
+            />
+            <Select className="w-48" label="Sort by" value={sort} onChange={(event) => setSort(event.target.value as typeof sort)}>
+              <option value="queue">Queue order</option>
+              <option value="lowest">Lowest match first</option>
+              <option value="highest">Highest match first</option>
+            </Select>
+          </div>
+        </div>
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
+          <Checkbox
+            label={`Select all shown (${selectableVisible.length})`}
+            checked={allVisibleSelected}
+            disabled={selectableVisible.length === 0 || pending}
+            onChange={(event) => toggleVisible(event.target.checked)}
+          />
+          <div className="flex items-center gap-3">
+            {selected.size > 0 && <Button variant="text" size="sm" disabled={pending} onClick={() => setSelected(new Set())}>Clear selection</Button>}
+            <Button variant="danger-outline" size="sm" disabled={selected.size === 0 || pending} onClick={() => setConfirmingDismiss(true)}>
+              Dismiss selected{selected.size > 0 ? ` (${selected.size})` : ""}
+            </Button>
+          </div>
+        </div>
+      </section>
+      {visibleItems.length === 0 && (
+        <p className="rounded-panel border border-line-card bg-card p-7 text-sm text-muted">No reviews match this percentage filter.</p>
+      )}
+      {visibleItems.map((item) => (
         <article key={item.id} className="rounded-panel border border-line-card bg-card p-6">
-          <button
-            type="button"
-            aria-expanded={expanded[item.id] ?? false}
-            aria-controls={`posting-${item.id}`}
-            onClick={() => setExpanded((current) => ({ ...current, [item.id]: !current[item.id] }))}
-            className="flex w-full flex-wrap items-start justify-between gap-4 rounded-control text-left focus-visible:outline-2 focus-visible:outline-offset-4"
-          >
-            <span>
-              <span className="block font-serif text-section">{item.role || "Untitled role"}</span>
-              <span className="mt-1 block text-sm text-muted">{item.company || "Unknown company"} · {item.source}{item.score === null ? "" : ` · ${item.score}% match`}</span>
-            </span>
-            <span className="flex items-center gap-3">
-              <span className="rounded-full bg-selected px-3 py-1 text-xs font-medium">{item.status.replaceAll("_", " ")}</span>
-              <span aria-hidden className="text-sm text-muted">{expanded[item.id] ? "▲" : "▼"}</span>
-            </span>
-          </button>
+          <div className="flex items-start gap-4">
+            {canDismiss(item) && (
+              <Checkbox
+                className="mt-1"
+                label={<span className="sr-only">Select {item.role || "untitled role"} at {item.company || "unknown company"}</span>}
+                checked={selected.has(item.id)}
+                disabled={pending}
+                onChange={(event) => toggleSelected(item.id, event.target.checked)}
+              />
+            )}
+            <button
+              type="button"
+              aria-expanded={expanded[item.id] ?? false}
+              aria-controls={`posting-${item.id}`}
+              onClick={() => setExpanded((current) => ({ ...current, [item.id]: !current[item.id] }))}
+              className="flex min-w-0 flex-1 flex-wrap items-start justify-between gap-4 rounded-control text-left focus-visible:outline-2 focus-visible:outline-offset-4"
+            >
+              <span>
+                <span className="block font-serif text-section">{item.role || "Untitled role"}</span>
+                <span className="mt-1 block text-sm text-muted">{item.company || "Unknown company"} · {item.source}{item.score === null ? "" : ` · ${item.score}% match`}</span>
+              </span>
+              <span className="flex items-center gap-3">
+                <span className="rounded-full bg-selected px-3 py-1 text-xs font-medium">{item.status.replaceAll("_", " ")}</span>
+                <span aria-hidden className="text-sm text-muted">{expanded[item.id] ? "▲" : "▼"}</span>
+              </span>
+            </button>
+          </div>
           {item.issue && <p role="alert" className="mt-4 rounded-control bg-danger-soft p-3 text-sm text-error-strong">{item.issue}</p>}
           {expanded[item.id] && (
             <section id={`posting-${item.id}`} aria-label="Original posting" className="mt-4 rounded-control border border-line-field p-4">
@@ -162,6 +264,20 @@ export function ReviewQueue({ items, gmail }: { items: Item[]; gmail: { configur
           </div>
         </article>
       ))}
+      <ConfirmDialog
+        open={confirmingDismiss}
+        onOpenChange={setConfirmingDismiss}
+        title={`Dismiss ${selected.size} selected ${selected.size === 1 ? "review" : "reviews"}?`}
+        description="Prepared application drafts will be deleted, and these postings will not be prepared again. This cannot be undone."
+        confirmLabel="Dismiss selected"
+        onConfirm={() => run(
+          () => dismissAutomationCandidates({ candidateIds: [...selected] }),
+          () => {
+            setSelected(new Set());
+            setConfirmingDismiss(false);
+          },
+        )}
+      />
       <ConfirmDialog
         open={sending !== null}
         onOpenChange={(open) => !open && setSending(null)}

@@ -13,6 +13,7 @@ import { GmailDeliveryUnknown, GmailNotConnected, GmailSendFailed } from "@/lib/
 import { prisma } from "@/lib/prisma";
 
 const idSchema = z.object({ applicationId: z.string().min(1) });
+const candidateIdsSchema = z.object({ candidateIds: z.array(z.string().min(1)).min(1).max(500) });
 const recipientSchema = z.object({
   candidateId: z.string().min(1),
   recipient: z.string().trim().refine(isEmailAddress, "Enter one valid email address."),
@@ -51,6 +52,48 @@ export const dismissAutomationCandidate = action(z.object({ candidateId: z.strin
   refresh();
   toast("Dismissed. This posting will not be prepared again.");
   return null;
+});
+
+export const dismissAutomationCandidates = action(candidateIdsSchema, async ({ candidateIds }, { toast }) => {
+  const uniqueIds = [...new Set(candidateIds)];
+  const dismissed = await prisma.$transaction(async (tx) => {
+    const candidates = await tx.automationCandidate.findMany({
+      where: {
+        id: { in: uniqueIds },
+        posting: { dismissedAt: null },
+        OR: [
+          { applicationId: null, status: { in: ["FILTERED", "FAILED"] } },
+          { application: { reviewState: "PENDING_REVIEW" } },
+        ],
+      },
+      select: { id: true, postingId: true, applicationId: true },
+    });
+    if (candidates.length === 0) throw new ActionError("Those review items are no longer available.");
+
+    const prepared = candidates.filter((candidate) => candidate.applicationId !== null);
+    if (prepared.length > 0) {
+      await tx.automationCandidate.updateMany({
+        where: { id: { in: prepared.map((candidate) => candidate.id) } },
+        data: { applicationId: null, status: "FILTERED", reason: "Dismissed by you.", error: null },
+      });
+      await tx.posting.updateMany({
+        where: { id: { in: prepared.map((candidate) => candidate.postingId) } },
+        data: { applicationId: null, savedAt: null },
+      });
+      await tx.application.deleteMany({
+        where: { id: { in: prepared.map((candidate) => candidate.applicationId!) } },
+      });
+    }
+
+    await tx.posting.updateMany({
+      where: { id: { in: candidates.map((candidate) => candidate.postingId) } },
+      data: { dismissedAt: new Date() },
+    });
+    return candidates.length;
+  });
+  refresh();
+  toast(`${dismissed} review ${dismissed === 1 ? "item" : "items"} dismissed.`);
+  return { dismissed };
 });
 
 export const keepAutomationDraft = action(idSchema, async ({ applicationId }, { toast }) => {
