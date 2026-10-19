@@ -6,6 +6,7 @@ import { z } from "zod";
 import { action, ActionError } from "@/lib/action";
 import { isEmailAddress } from "@/lib/application-email";
 import { MISSING_APPLICATION_EMAIL } from "@/lib/automation/filter";
+import { emailDiscoverySchema } from "@/lib/email-discovery-data";
 import { emailDiscoveryConfigured } from "@/lib/email-discovery/searxng";
 import { automationCandidateJobKey, prepareAutomationCandidateJob } from "@/lib/jobs/prepare-automation-candidate";
 import { findLatestJob, retryJob, startJob } from "@/lib/jobs/runner";
@@ -59,6 +60,53 @@ export const searchForAutomationRecipient = action(z.object({ candidateId: z.str
   refresh();
   toast("Public email search queued.");
   return null;
+});
+
+export const searchForAutomationRecipients = action(candidateIdsSchema, async ({ candidateIds }, { toast }) => {
+  if (!emailDiscoveryConfigured()) throw new ActionError("Configure SearXNG in Settings → Automation first.");
+  const uniqueIds = [...new Set(candidateIds)];
+  const candidates = await prisma.automationCandidate.findMany({
+    where: {
+      id: { in: uniqueIds },
+      applicationId: null,
+      status: "FILTERED",
+      reason: MISSING_APPLICATION_EMAIL,
+    },
+    select: { id: true, emailDiscovery: true },
+  });
+  const withoutFoundEmail = candidates.filter((candidate) => {
+    const discovery = emailDiscoverySchema.safeParse(candidate.emailDiscovery);
+    return !discovery.success || discovery.data.candidates.length === 0;
+  });
+  if (withoutFoundEmail.length === 0) throw new ActionError("None of the selected items still need an email search.");
+
+  const queued: string[] = [];
+  for (const candidate of withoutFoundEmail) {
+    const claimed = await prisma.automationCandidate.updateMany({
+      where: {
+        id: candidate.id,
+        applicationId: null,
+        status: "FILTERED",
+        reason: MISSING_APPLICATION_EMAIL,
+      },
+      data: { status: "DISCOVERED", reason: null, error: null },
+    });
+    if (!claimed.count) continue;
+    try {
+      await startJob(prepareAutomationCandidateJob, { candidateId: candidate.id }, { key: automationCandidateJobKey(candidate.id) });
+      queued.push(candidate.id);
+    } catch (error) {
+      await prisma.automationCandidate.updateMany({
+        where: { id: candidate.id, applicationId: null, status: "DISCOVERED" },
+        data: { status: "FILTERED", reason: MISSING_APPLICATION_EMAIL },
+      });
+      throw error;
+    }
+  }
+  if (queued.length === 0) throw new ActionError("None of the selected items still need an email search.");
+  refresh();
+  toast(`${queued.length} email ${queued.length === 1 ? "search" : "searches"} queued.`);
+  return { queued: queued.length, skipped: uniqueIds.length - queued.length };
 });
 
 export const dismissAutomationCandidate = action(z.object({ candidateId: z.string().min(1) }), async ({ candidateId }, { toast }) => {

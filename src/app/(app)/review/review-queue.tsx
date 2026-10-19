@@ -22,6 +22,7 @@ import {
   provideAutomationRecipient,
   retryAutomationCandidate,
   searchForAutomationRecipient,
+  searchForAutomationRecipients,
 } from "./actions";
 
 type Item = {
@@ -57,22 +58,30 @@ export function ReviewQueue({ items, gmail, emailSearchConfigured = false }: { i
   const [recipients, setRecipients] = useState<Record<string, string>>({});
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [matchBelow, setMatchBelow] = useState("");
+  const [emailFilter, setEmailFilter] = useState<"all" | "not-found" | "found">("all");
   const [sort, setSort] = useState<"queue" | "lowest" | "highest">("queue");
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const visibleItems = useMemo(() => {
     const threshold = matchBelow === "" ? null : Number(matchBelow);
-    const filtered = threshold === null || Number.isNaN(threshold)
+    const byScore = threshold === null || Number.isNaN(threshold)
       ? items
       : items.filter((item) => item.score !== null && item.score < threshold);
+    const filtered = byScore.filter((item) => {
+      if (emailFilter === "not-found") return item.canProvideRecipient && item.discoveredEmails.length === 0;
+      if (emailFilter === "found") return item.canProvideRecipient && item.discoveredEmails.length > 0;
+      return true;
+    });
     if (sort === "queue") return filtered;
     return [...filtered].sort((left, right) => {
       if (left.score === null) return right.score === null ? 0 : 1;
       if (right.score === null) return -1;
       return sort === "lowest" ? left.score - right.score : right.score - left.score;
     });
-  }, [items, matchBelow, sort]);
+  }, [items, matchBelow, emailFilter, sort]);
   const canDismiss = (item: Item) => item.status === "FAILED" || item.status === "FILTERED" || item.applicationId !== null;
+  const canSearchEmail = (item: Item) => item.canProvideRecipient && item.discoveredEmails.length === 0;
   const selectableVisible = visibleItems.filter(canDismiss);
+  const selectedForEmailSearch = items.filter((item) => selected.has(item.id) && canSearchEmail(item));
   const allVisibleSelected = selectableVisible.length > 0 && selectableVisible.every((item) => selected.has(item.id));
   const run = (work: () => Promise<{ ok: boolean; error?: string; toast?: string }>, onSuccess?: () => void) =>
     start(async () => {
@@ -130,6 +139,11 @@ export function ReviewQueue({ items, gmail, emailSearchConfigured = false }: { i
               value={matchBelow}
               onChange={(event) => setMatchBelow(event.target.value)}
             />
+            <Select className="w-48" label="Application email" value={emailFilter} onChange={(event) => setEmailFilter(event.target.value as typeof emailFilter)}>
+              <option value="all">All email states</option>
+              <option value="not-found">No email found</option>
+              <option value="found">Email found</option>
+            </Select>
             <Select className="w-48" label="Sort by" value={sort} onChange={(event) => setSort(event.target.value as typeof sort)}>
               <option value="queue">Queue order</option>
               <option value="lowest">Lowest match first</option>
@@ -144,8 +158,21 @@ export function ReviewQueue({ items, gmail, emailSearchConfigured = false }: { i
             disabled={selectableVisible.length === 0 || pending}
             onChange={(event) => toggleVisible(event.target.checked)}
           />
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center justify-end gap-3">
             {selected.size > 0 && <Button variant="text" size="sm" disabled={pending} onClick={() => setSelected(new Set())}>Clear selection</Button>}
+            {emailSearchConfigured && (
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={selectedForEmailSearch.length === 0 || pending}
+                onClick={() => run(
+                  () => searchForAutomationRecipients({ candidateIds: selectedForEmailSearch.map((item) => item.id) }),
+                  () => setSelected(new Set()),
+                )}
+              >
+                Search emails{selectedForEmailSearch.length > 0 ? ` (${selectedForEmailSearch.length})` : ""}
+              </Button>
+            )}
             <Button variant="danger-outline" size="sm" disabled={selected.size === 0 || pending} onClick={() => setConfirmingDismiss(true)}>
               Dismiss selected{selected.size > 0 ? ` (${selected.size})` : ""}
             </Button>
@@ -153,7 +180,7 @@ export function ReviewQueue({ items, gmail, emailSearchConfigured = false }: { i
         </div>
       </section>
       {visibleItems.length === 0 && (
-        <p className="rounded-panel border border-line-card bg-card p-7 text-sm text-muted">No reviews match this percentage filter.</p>
+        <p className="rounded-panel border border-line-card bg-card p-7 text-sm text-muted">No reviews match the current filters.</p>
       )}
       {visibleItems.map((item) => (
         <article key={item.id} className="rounded-panel border border-line-card bg-card p-6">

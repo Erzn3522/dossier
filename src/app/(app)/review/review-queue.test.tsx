@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { dismissAutomationCandidates, provideAutomationRecipient, searchForAutomationRecipient } from "./actions";
+import { dismissAutomationCandidates, provideAutomationRecipient, searchForAutomationRecipient, searchForAutomationRecipients } from "./actions";
 import { ReviewQueue } from "./review-queue";
 
 const router = vi.hoisted(() => ({ refresh: vi.fn() }));
@@ -20,6 +20,7 @@ vi.mock("./actions", () => ({
   provideAutomationRecipient: vi.fn(),
   retryAutomationCandidate: vi.fn(),
   searchForAutomationRecipient: vi.fn(),
+  searchForAutomationRecipients: vi.fn(),
 }));
 
 const item: ComponentProps<typeof ReviewQueue>["items"][number] = {
@@ -52,6 +53,7 @@ beforeEach(() => {
   vi.mocked(provideAutomationRecipient).mockResolvedValue({ ok: true, data: null, toast: "Preparation queued." });
   vi.mocked(dismissAutomationCandidates).mockResolvedValue({ ok: true, data: { dismissed: 2 }, toast: "2 review items dismissed." });
   vi.mocked(searchForAutomationRecipient).mockResolvedValue({ ok: true, data: null, toast: "Public email search queued." });
+  vi.mocked(searchForAutomationRecipients).mockResolvedValue({ ok: true, data: { queued: 1, skipped: 0 }, toast: "1 email search queued." });
 });
 
 describe("ReviewQueue automation issues", () => {
@@ -110,6 +112,33 @@ describe("ReviewQueue automation issues", () => {
     render(<ReviewQueue items={[item]} gmail={{ configured: true, email: "sender@example.com" }} emailSearchConfigured />);
     await userEvent.click(screen.getByRole("button", { name: "Search public pages" }));
     await waitFor(() => expect(searchForAutomationRecipient).toHaveBeenCalledWith({ candidateId: "candidate-1" }));
+  });
+
+  it("filters emails that were not found and bulk queues only those selected items", async () => {
+    const found = {
+      ...item,
+      id: "candidate-2",
+      role: "Designer",
+      discoveredEmails: [{
+        email: "careers@example.com",
+        sourceUrl: "https://example.com/careers",
+        sourceTitle: "Example careers",
+        context: "Applications: careers@example.com",
+        confidence: "HIGH" as const,
+        reason: "The official careers page names this address.",
+      }],
+    };
+    render(<ReviewQueue items={[item, found]} gmail={{ configured: true, email: "sender@example.com" }} emailSearchConfigured />);
+
+    await userEvent.click(screen.getByRole("checkbox", { name: "Select all shown (2)" }));
+    expect(screen.getByRole("button", { name: "Search emails (1)" })).toBeEnabled();
+    await userEvent.click(screen.getByRole("button", { name: "Search emails (1)" }));
+
+    await waitFor(() => expect(searchForAutomationRecipients).toHaveBeenCalledWith({ candidateIds: ["candidate-1"] }));
+    await userEvent.selectOptions(screen.getByLabelText("Application email"), "not-found");
+    expect(screen.getByText("Showing 1 of 2")).toBeVisible();
+    expect(screen.getByRole("button", { name: /Engineer/ })).toBeVisible();
+    expect(screen.queryByRole("button", { name: /Designer/ })).not.toBeInTheDocument();
   });
 
   it("shows the total, filters by a match ceiling and sorts matching scores", async () => {
