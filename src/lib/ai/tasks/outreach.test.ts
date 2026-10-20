@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { MockProvider } from "@/lib/ai/providers/mock";
 import { demoProfile } from "@/lib/demo-profile";
 
-import { analyzeOutreachCompany, rankOutreachContacts, tailorOutreachResume, type TaskOptions } from "./index";
+import { analyzeOutreachCompany, rankOutreachContacts, tailorOutreachResume, writeOutreachEmail, type TaskOptions } from "./index";
 
 const options: TaskOptions = { creativity: "BALANCED", strict: true, language: "English" };
 
@@ -46,3 +46,25 @@ describe("outreach AI boundaries", () => {
   });
 });
 
+
+describe("outreach email perspective", () => {
+  const company = { companyName: "Vision Co", score: 90, summary: "Builds inspection systems", capabilities: ["Vision"], hiringSignal: null, reason: "Relevant", evidenceIndexes: [0] };
+  const contact = { email: "hello@vision.example", name: null, title: null, sourceUrl: "https://vision.example/", excerpt: "hello@vision.example", role: "general" as const, rankReason: "" };
+  const words = (count: number) => Array.from({ length: count }, () => "detail").join(" ");
+
+  it("sends a recruiter-voice draft with a placeholder signature back to the model, and keeps the corrected one", async () => {
+    const profile = demoProfile();
+    const first = profile.basics.name.split(" ")[0];
+    const replies = [
+      { subject: "Hello", body: `Hi ${first}! I came across your profile and your experience. ${words(70)}\n\nBest regards,\n[Your Name]` },
+      { subject: "Computer vision engineer", body: `Hello Vision Co team, I build computer vision systems and would like to ask about engineering roles. ${words(70)}` },
+    ];
+    const provider = new MockProvider({ reply: () => replies.shift()! });
+    const result = await writeOutreachEmail(provider, { profile, company, contact, pitch: "Profile fit", cta: "A short call", opportunity: "Employment" }, options);
+    expect(provider.calls).toHaveLength(2);
+    expect(JSON.stringify(provider.calls[1].messages.at(-1))).toMatch(/sender is the job seeker/);
+    expect(result.data.body).toMatch(/^Hello Vision Co team/);
+    expect(result.data.body).not.toMatch(/\[Your Name\]|your profile/);
+    expect(provider.calls[0].system).toMatch(/FROM a job seeker TO a company/);
+  });
+});

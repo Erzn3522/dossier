@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { companySearchQueries, extractPublicContacts, normalizedDomain, parseRobots, robotsAllows } from "./research";
+import { extractPublicContacts, normalizedDomain, pageExcerpt, parseRobots, robotsAllows } from "./research";
 
 describe("outreach research boundaries", () => {
   it("normalizes subdomains to one company domain and rejects directories/social sites", () => {
@@ -10,10 +10,12 @@ describe("outreach research boundaries", () => {
     expect(normalizedDomain("http://localhost:8080")).toBeNull();
   });
 
-  it("builds region and remote terms into bounded campaign queries", () => {
-    const queries = companySearchQueries({ keywords: ["computer vision", "OCR", "3D vision", "video analytics", "ignored"], countries: ["Europe"], remote: true });
-    expect(queries).toHaveLength(4);
-    expect(queries[0]).toContain('"computer vision" company Europe remote');
+  it("keeps addresses that only appear after the excerpt limit, with their verbatim surroundings", () => {
+    const text = `${"About our vision products. ".repeat(400)}Footer: write to careers@example.com today.\nEmail link: careers@example.com`;
+    const excerpt = pageExcerpt(text);
+    expect(excerpt.length).toBeLessThan(text.length);
+    expect(excerpt).toContain("Footer: write to careers@example.com today.");
+    expect(excerpt.split(" … ")).toHaveLength(2);
   });
 
   it("respects wildcard robots exclusions", () => {
@@ -30,6 +32,14 @@ describe("outreach research boundaries", () => {
     }]);
     expect(contacts.map((contact) => contact.email)).toEqual(["talent@example.com"]);
     expect(contacts[0]).toMatchObject({ role: "recruiting", sourceUrl: "https://example.com/team" });
+  });
+
+  it("keeps a small company's general inbox as a low-priority candidate", () => {
+    const contacts = extractPublicContacts("example.com", [{
+      url: "https://example.com/join-us",
+      excerpt: "Want to join? Send your CV to hello@example.com. Jobs: jobs@example.com. Newsletter: newsletter@example.com.",
+    }]);
+    expect(contacts.map((contact) => [contact.email, contact.role])).toEqual([["hello@example.com", "general"], ["jobs@example.com", "recruiting"]]);
   });
 });
 

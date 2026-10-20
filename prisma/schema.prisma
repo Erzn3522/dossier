@@ -280,6 +280,9 @@ model OutreachRun {
   campaignId String
   campaign   OutreachCampaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   status     OutreachRunStatus @default(RUNNING)
+  /// The one country this run searched, or null when it searched all of the campaign's regions.
+  /// Each country keeps its own place in the query plan.
+  country    String?
   found      Int               @default(0)
   qualified  Int               @default(0)
   prepared   Int               @default(0)

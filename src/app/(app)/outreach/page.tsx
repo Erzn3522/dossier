@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/page-header";
 import { unitsSchema } from "@/lib/application-data";
 import { emailDiscoveryConfigured } from "@/lib/email-discovery/searxng";
 import { outreachContactsSchema, outreachEvidenceSchema } from "@/lib/outreach/data";
+import { campaignCountries } from "@/lib/outreach/discovery";
 import { prisma } from "@/lib/prisma";
 import { loadSettings } from "@/lib/settings-data";
 import { supportedTimeZones } from "@/lib/time-zones";
@@ -58,6 +59,7 @@ export default async function OutreachPage() {
           enabled: campaign.enabled,
           keywords: campaign.keywords,
           countries: campaign.countries,
+          countryOptions: campaignCountries(campaign.countries),
           remote: campaign.remote,
           targetRole: campaign.targetRole,
           opportunity: campaign.opportunity,

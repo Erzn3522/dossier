@@ -1,15 +1,17 @@
 import "server-only";
 
-import type { OutreachCampaign } from "@/generated/prisma/client";
-
 import type { OutreachContact } from "./data";
-import { publicOutreachPageReader, searxngOutreachSearch, type OutreachPageReader, type OutreachSearchProvider } from "./providers";
+import { publicOutreachPageReader, type OutreachPageReader } from "./providers";
 
 const BLOCKED_HOSTS = new Set(["linkedin.com", "facebook.com", "instagram.com", "x.com", "twitter.com", "crunchbase.com", "zoominfo.com", "rocketreach.co", "apollo.io", "hunter.io", "glassdoor.com", "indeed.com", "wikipedia.org", "github.io"]);
 const TWO_PART_SUFFIXES = new Set(["co.uk", "org.uk", "com.au", "com.br", "co.jp", "co.nz", "co.za", "com.tr"]);
-const PAGE_PATHS = ["/", "/about", "/team", "/careers", "/jobs", "/contact"] as const;
+// Tried in order until MAX_PAGES are read. Imprint pages are where EU companies must publish a contact address.
+const PAGE_PATHS = ["/", "/about", "/contact", "/careers", "/impressum", "/imprint", "/team", "/jobs", "/about-us", "/contact-us", "/kontakt", "/legal-notice"] as const;
+const MAX_PAGES = 6;
+const EXCERPT_LENGTH = 8_000;
 const EMAIL = /[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+/gi;
-const REJECTED_MAILBOX = /^(?:no-?reply|donotreply|privacy|security|abuse|billing|invoice|press|media|support|help|legal|compliance|sales|marketing|info|contact|hello|office)(?:[+._-]|$)/i;
+// General inboxes such as info@ or hello@ are often a small company's only address, so they stay as low-ranked candidates.
+const REJECTED_MAILBOX = /^(?:no-?reply|donotreply|privacy|datenschutz|dpo|gdpr|security|abuse|postmaster|webmaster|billing|invoice|rechnung|accounting|buchhaltung|press|presse|media|support|help|service|legal|compliance|sales|vertrieb|marketing|newsletter|orders?)(?:[+._-]|$)/i;
 
 export function normalizedDomain(input: string): string | null {
   try {
@@ -26,30 +28,6 @@ export function normalizedDomain(input: string): string | null {
   } catch {
     return null;
   }
-}
-
-export function companySearchQueries(campaign: Pick<OutreachCampaign, "keywords" | "countries" | "remote">): string[] {
-  const location = campaign.countries.join(" OR ") || "Europe";
-  return campaign.keywords.slice(0, 4).map((keyword) => `\"${keyword}\" company ${location}${campaign.remote ? " remote" : ""} -jobs -linkedin`);
-}
-
-export async function discoverCompanySites(
-  campaign: OutreachCampaign,
-  limit: number,
-  signal?: AbortSignal,
-  provider: OutreachSearchProvider = searxngOutreachSearch,
-): Promise<{ domain: string; website: string; title: string }[]> {
-  const found = new Map<string, { domain: string; website: string; title: string }>();
-  for (const query of companySearchQueries(campaign)) {
-    for (const result of await provider.search(query, signal)) {
-      const domain = normalizedDomain(result.url);
-      if (!domain || found.has(domain)) continue;
-      const parsed = new URL(result.url);
-      found.set(domain, { domain, website: `${parsed.protocol}//${parsed.host}/`, title: result.title.trim() });
-      if (found.size >= limit * 3) return [...found.values()];
-    }
-  }
-  return [...found.values()];
 }
 
 type RobotsRules = { disallow: string[] };
@@ -83,19 +61,40 @@ export async function readCompanyPages(
   const rules = robotsPage.ok ? parseRobots(robotsPage.text) : { disallow: [] };
   const pages: { url: string; title: string; excerpt: string; collectedAt: string }[] = [];
   for (const path of PAGE_PATHS) {
+    if (pages.length >= MAX_PAGES) break;
     if (!robotsAllows(path, rules)) continue;
     const page = await reader.read(new URL(path, origin).toString(), signal);
     if (!page.ok || normalizedDomain(page.url) !== normalizedDomain(origin)) continue;
-    const excerpt = page.text.replace(/\s+/g, " ").trim().slice(0, 8_000);
+    // A redirect (for example /about → /about-us) can land on a page already read.
+    if (pages.some((entry) => entry.url === page.url)) continue;
+    const excerpt = pageExcerpt(page.text.replace(/\s+/g, " ").trim());
     if (!excerpt || pages.some((entry) => entry.excerpt === excerpt)) continue;
     pages.push({ url: page.url, title: path === "/" ? "Home" : path.slice(1), excerpt, collectedAt: new Date().toISOString() });
   }
   return pages;
 }
 
+/**
+ * The page's opening text, plus the verbatim surroundings of any address past it. Footers and the
+ * page reader's mailto lines come last, so cutting at a fixed length alone would lose them.
+ */
+export function pageExcerpt(text: string): string {
+  const head = text.slice(0, EXCERPT_LENGTH);
+  const tail: string[] = [];
+  const seen = new Set(Array.from(head.matchAll(EMAIL), (match) => match[0].toLowerCase()));
+  for (const match of text.slice(EXCERPT_LENGTH).matchAll(EMAIL)) {
+    const email = match[0].toLowerCase();
+    if (seen.has(email) || tail.length >= 10) continue;
+    seen.add(email);
+    const at = EXCERPT_LENGTH + (match.index ?? 0);
+    tail.push(text.slice(Math.max(EXCERPT_LENGTH, at - 120), at + match[0].length + 120).trim());
+  }
+  return tail.length ? `${head} … ${tail.join(" … ")}` : head;
+}
+
 function contactRole(local: string, context: string): OutreachContact["role"] {
   const haystack = `${local} ${context}`.toLowerCase();
-  if (/recruit|hiring|talent|people|hr\b/.test(haystack)) return "recruiting";
+  if (/^(?:jobs?|careers?|karriere|bewerbung|candidature)(?:[+._-]|$)/i.test(local) || /recruit|hiring|talent|people|hr\b/.test(haystack)) return "recruiting";
   if (/cto|chief technology|technical lead|engineering lead|head of (engineering|ai|vision)/.test(haystack)) return "technical-lead";
   if (/founder|co-founder|ceo/.test(haystack)) return "founder";
   if (/computer vision|machine learning|image processing|engineering/.test(haystack)) return "role";

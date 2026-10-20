@@ -33,7 +33,7 @@ import {
 } from "./actions";
 
 type Campaign = {
-  id: string; name: string; enabled: boolean; keywords: string[]; countries: string[]; remote: boolean;
+  id: string; name: string; enabled: boolean; keywords: string[]; countries: string[]; countryOptions: string[]; remote: boolean;
   targetRole: string; opportunity: string; pitch: string; cta: string; language: string;
   fitThreshold: number; dailyDiscoveryLimit: number; lastRunAt: string | null;
   lastRun: { status: string; found: number; prepared: number; filtered: number; failed: number } | null;
@@ -46,13 +46,13 @@ type Lead = {
   delivery: { status: string; error: string | null; attemptedAt: string; gmailMessageId: string | null } | null;
 };
 type Settings = { enabled: boolean; acknowledged: boolean; time: string; timeZone: string; dailySendLimit: number; problem: string | null };
-type CampaignForm = Omit<Campaign, "id" | "lastRunAt" | "lastRun">;
+type CampaignForm = Omit<Campaign, "id" | "lastRunAt" | "lastRun" | "countryOptions">;
 type View = "campaigns" | "leads" | "review" | "sent";
 
 const NAV: { value: View; label: string }[] = [
   { value: "campaigns", label: "Campaigns" }, { value: "leads", label: "Leads" }, { value: "review", label: "Review" }, { value: "sent", label: "Sent" },
 ];
-const emptyCampaign: Omit<Campaign, "id" | "lastRunAt" | "lastRun"> = {
+const emptyCampaign: CampaignForm = {
   name: "", enabled: true, keywords: ["computer vision"], countries: ["Europe"], remote: true,
   targetRole: "Computer Vision / Machine Learning Engineer", opportunity: "Full-time employment or a relevant engineering opportunity",
   pitch: "Introduce my relevant computer vision and image processing experience using only facts from my profile.",
@@ -110,13 +110,21 @@ function Campaigns({ campaigns, settings, timeZones, suppressions, searchConfigu
       <Button disabled={pending} onClick={saveSchedule}>Save outreach settings</Button>
       <p className="text-meta text-muted">Before sending, review the <a className="underline" target="_blank" rel="noreferrer" href="https://commission.europa.eu/law/law-topic/data-protection/information-business-and-organisations/legal-grounds-processing-data_en">European Commission guidance</a> and <a className="underline" target="_blank" rel="noreferrer" href="https://support.google.com/mail/answer/14229414">Google sender guidelines</a>.</p>
     </Card>
-    <div className="flex items-center justify-between"><div><h2 className="font-medium">Campaigns</h2><p className="text-sm text-muted">Each active campaign researches at most ten new domains per day.</p></div><Button size="sm" onClick={() => setCreating(true)}>New campaign</Button></div>
+    <div className="flex items-center justify-between"><div><h2 className="font-medium">Campaigns</h2><p className="text-sm text-muted">Each campaign researches at most its New companies/day (up to 25), dismissed ones included. Every run searches the next eight queries of its plan.</p></div><Button size="sm" onClick={() => setCreating(true)}>New campaign</Button></div>
     {creating && <CampaignEditor initial={emptyCampaign} pending={pending} onCancel={() => setCreating(false)} onSave={(data) => run(async () => { const result = await saveOutreachCampaign(data); if (result.ok) setCreating(false); return result; })} />}
     {campaigns.map((campaign) => editing?.id === campaign.id
       ? <CampaignEditor key={campaign.id} initial={campaign} pending={pending} onCancel={() => setEditing(null)} onSave={(data) => run(async () => { const result = await saveOutreachCampaign({ ...data, id: campaign.id }); if (result.ok) setEditing(null); return result; })} />
-      : <Card key={campaign.id} className="space-y-4"><div className="flex flex-wrap items-start justify-between gap-4"><div><h3 className="font-medium">{campaign.name}</h3><p className="text-sm text-muted">{campaign.keywords.join(", ")} · {campaign.countries.join(", ")} · threshold {campaign.fitThreshold}%</p></div><Toggle label={campaign.enabled ? "Active" : "Paused"} checked={campaign.enabled} onCheckedChange={(enabled) => run(() => toggleOutreachCampaign({ id: campaign.id, enabled }))} /></div><p className="text-sm">{campaign.targetRole} · {campaign.opportunity}</p>{campaign.lastRun && <p className="text-meta text-muted">Last run: {campaign.lastRun.status.toLowerCase()} · {campaign.lastRun.found} found · {campaign.lastRun.prepared} prepared · {campaign.lastRun.filtered} filtered · {campaign.lastRun.failed} failed</p>}<div className="flex flex-wrap gap-3"><Button size="sm" disabled={pending || !campaign.enabled || !settings.enabled || !searchConfigured} onClick={() => run(() => runOutreachNow({ id: campaign.id }))}>Run now</Button><Button variant="secondary" size="sm" onClick={() => setEditing(campaign)}>Edit</Button><Button variant="danger-text" size="sm" onClick={() => run(() => deleteOutreachCampaign({ id: campaign.id }))}>Remove</Button></div></Card>)}
+      : <Card key={campaign.id} className="space-y-4"><div className="flex flex-wrap items-start justify-between gap-4"><div><h3 className="font-medium">{campaign.name}</h3><p className="text-sm text-muted">{campaign.keywords.join(", ")} · {campaign.countries.join(", ")} · threshold {campaign.fitThreshold}%</p></div><Toggle label={campaign.enabled ? "Active" : "Paused"} checked={campaign.enabled} onCheckedChange={(enabled) => run(() => toggleOutreachCampaign({ id: campaign.id, enabled }))} /></div><p className="text-sm">{campaign.targetRole} · {campaign.opportunity}</p>{campaign.lastRun && <p className="text-meta text-muted">Last run: {campaign.lastRun.status.toLowerCase()} · {campaign.lastRun.found} found · {campaign.lastRun.prepared} prepared · {campaign.lastRun.filtered} filtered · {campaign.lastRun.failed} failed</p>}<div className="flex flex-wrap items-end gap-3"><RunCampaign campaign={campaign} disabled={pending || !campaign.enabled || !settings.enabled || !searchConfigured} onRun={(country) => run(() => runOutreachNow({ id: campaign.id, country }))} /><Button variant="secondary" size="sm" onClick={() => setEditing(campaign)}>Edit</Button><Button variant="danger-text" size="sm" onClick={() => run(() => deleteOutreachCampaign({ id: campaign.id }))}>Remove</Button></div></Card>)}
     <Card><h2 className="font-medium">Suppression list</h2><p className="mt-1 text-sm text-muted">These values apply across every campaign and are never rediscovered unless you remove them here.</p>{suppressions.length ? <ul className="mt-4 space-y-2 text-sm">{suppressions.map((item) => <li key={item.id} className="flex items-center justify-between gap-3"><span><span className="text-meta uppercase text-muted">{item.kind}</span> · {item.value}</span><Button variant="danger-text" size="sm" disabled={pending} onClick={() => run(() => removeOutreachSuppression({ id: item.id }))}>Remove</Button></li>)}</ul> : <p className="mt-4 text-sm text-muted">No suppressed emails or domains.</p>}</Card>
   </div>;
+}
+
+function RunCampaign({ campaign, disabled, onRun }: { campaign: Campaign; disabled: boolean; onRun: (country: string | null) => void }) {
+  const [country, setCountry] = useState("");
+  return <>
+    {campaign.countryOptions.length > 1 && <Select label="Search in" value={country} onChange={(e) => setCountry(e.target.value)}><option value="">All regions</option>{campaign.countryOptions.map((option) => <option key={option} value={option}>{option}</option>)}</Select>}
+    <Button size="sm" disabled={disabled} onClick={() => onRun(country || null)}>Run now</Button>
+  </>;
 }
 
 function CampaignEditor({ initial, pending, onCancel, onSave }: { initial: CampaignForm; pending: boolean; onCancel: () => void; onSave: (data: CampaignForm) => void }) {
@@ -132,7 +140,7 @@ function CampaignEditor({ initial, pending, onCancel, onSave }: { initial: Campa
     <Textarea className="sm:col-span-2" label="Pitch guidance" value={data.pitch} onChange={(e) => setData({ ...data, pitch: e.target.value })} />
     <Textarea className="sm:col-span-2" label="CTA" value={data.cta} onChange={(e) => setData({ ...data, cta: e.target.value })} />
     <Input label="Minimum fit (%)" type="number" min={1} max={100} value={data.fitThreshold} onChange={(e) => setData({ ...data, fitThreshold: Number(e.target.value) })} />
-    <Input label="New companies/day" type="number" min={1} max={10} value={data.dailyDiscoveryLimit} onChange={(e) => setData({ ...data, dailyDiscoveryLimit: Number(e.target.value) })} />
+    <Input label="New companies/day" type="number" min={1} max={25} value={data.dailyDiscoveryLimit} onChange={(e) => setData({ ...data, dailyDiscoveryLimit: Number(e.target.value) })} />
     <Checkbox label="Include remote companies" checked={data.remote} onChange={(e) => setData({ ...data, remote: e.target.checked })} />
     <Checkbox label="Campaign active" checked={data.enabled} onChange={(e) => setData({ ...data, enabled: e.target.checked })} />
     <div className="flex gap-3 sm:col-span-2"><Button disabled={pending} onClick={() => onSave(input)}>Save campaign</Button><Button variant="secondary" onClick={onCancel}>Cancel</Button></div>
@@ -174,7 +182,7 @@ function ReviewCard({ lead }: { lead: Lead }) {
     <Input label="Subject" disabled={!editable} value={subject} onChange={(e) => setSubject(e.target.value)} />
     <Textarea label="Email" disabled={!editable} rows={9} value={body} onChange={(e) => setBody(e.target.value)} />
     <div className="space-y-3"><div className="flex items-center justify-between"><h3 className="text-sm font-medium">Tailored CV</h3><a className="text-sm underline" href={`/api/pdf?doc=outreach-resume&lead=${lead.id}`} target="_blank" rel="noreferrer">Download PDF</a></div><details className="rounded-control border border-line p-3"><summary className="cursor-pointer text-sm font-medium">Preview formatted CV</summary><p className="my-2 text-meta text-muted">The preview shows the last saved version. Save edits to refresh it.</p><iframe title={`${lead.companyName} tailored CV preview`} loading="lazy" src={`/print/outreach-resume/${lead.id}`} className="h-[720px] w-full rounded-control border border-line bg-white" /></details>{units.map((unit, index) => <Textarea key={unit.id} label={unit.label} disabled={!editable} rows={unit.text.includes("\n") ? 4 : 2} value={unit.text} onChange={(e) => setUnits(units.map((entry, entryIndex) => entryIndex === index ? { ...entry, text: e.target.value } : entry))} />)}</div>
-    {editable ? <div className="flex flex-wrap gap-3"><Button disabled={pending} onClick={() => save(true)}>Approve &amp; queue</Button><Button variant="secondary" disabled={pending} onClick={() => save(false)}>Save changes</Button><Button variant="danger-outline" disabled={pending} onClick={() => run(() => dismissOutreachLeads({ ids: [lead.id] }))}>Dismiss</Button><Button variant="danger-text" disabled={pending} onClick={() => run(() => suppressOutreachLead({ id: lead.id, kind: "EMAIL", email: recipient }))}>Suppress email</Button><Button variant="danger-text" disabled={pending} onClick={() => run(() => suppressOutreachLead({ id: lead.id, kind: "DOMAIN" }))}>Suppress domain</Button></div> : <p className="text-sm text-muted">Approved for the next daily window{lead.queuedFor ? `; scheduled ${new Date(lead.queuedFor).toLocaleString()}` : ""}.</p>}
+    {editable ? <div className="flex flex-wrap gap-3"><Button disabled={pending} onClick={() => save(true)}>Approve &amp; queue</Button><Button variant="secondary" disabled={pending} onClick={() => save(false)}>Save changes</Button><Button variant="secondary" disabled={pending} onClick={() => { if (window.confirm("Research this company again and rewrite the email and CV? Your unsaved and saved edits to this draft will be replaced.")) run(() => retryOutreachResearch({ id: lead.id })); }}>Redo draft</Button><Button variant="danger-outline" disabled={pending} onClick={() => run(() => dismissOutreachLeads({ ids: [lead.id] }))}>Dismiss</Button><Button variant="danger-text" disabled={pending} onClick={() => run(() => suppressOutreachLead({ id: lead.id, kind: "EMAIL", email: recipient }))}>Suppress email</Button><Button variant="danger-text" disabled={pending} onClick={() => run(() => suppressOutreachLead({ id: lead.id, kind: "DOMAIN" }))}>Suppress domain</Button></div> : <p className="text-sm text-muted">Approved for the next daily window{lead.queuedFor ? `; scheduled ${new Date(lead.queuedFor).toLocaleString()}` : ""}.</p>}
   </Card>;
 }
 

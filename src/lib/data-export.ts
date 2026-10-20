@@ -257,7 +257,7 @@ const outreachCampaign = z.object({
   lastRunAt: optionalDate, createdAt: date, updatedAt: date,
 });
 const outreachRun = z.object({
-  id: text, campaignId: text, status: z.enum(OutreachRunStatus), found: int, qualified: int, prepared: int, filtered: int, failed: int,
+  id: text, campaignId: text, status: z.enum(OutreachRunStatus), country: text.nullable().default(null), found: int, qualified: int, prepared: int, filtered: int, failed: int,
   error: text.nullable(), startedAt: date, finishedAt: optionalDate, updatedAt: date,
 });
 const outreachLead = z.object({

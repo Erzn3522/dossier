@@ -57,7 +57,7 @@ const campaignSchema = z.object({
   cta: z.string().trim().min(1).max(500),
   language: z.string().trim().min(1).max(50),
   fitThreshold: z.number().int().min(1).max(100),
-  dailyDiscoveryLimit: z.number().int().min(1).max(10),
+  dailyDiscoveryLimit: z.number().int().min(1).max(25),
 });
 
 export const saveOutreachCampaign = action(campaignSchema, async ({ id: campaignId, ...data }, { toast }) => {
@@ -84,10 +84,13 @@ export const deleteOutreachCampaign = action(id, async ({ id }, { toast }) => {
   return null;
 });
 
-export const runOutreachNow = action(id, async ({ id }, { toast }) => {
+export const runOutreachNow = action(id.extend({ country: z.string().trim().min(1).max(100).nullable().default(null) }), async ({ id, country }, { toast }) => {
   try {
-    const result = await runOutreachCampaign(id);
-    toast(result.queued ? `${result.queued} companies queued for research.` : "No new unsuppressed companies were found.");
+    const result = await runOutreachCampaign(id, { country });
+    const where = country ? ` in ${country}` : "";
+    toast(result.limitReached
+      ? `This campaign already found its ${result.limit} new companies for today, dismissed ones included. It can search again tomorrow.`
+      : result.queued ? `${result.queued} companies${where} queued for research.` : `No new unsuppressed companies were found${where}. Run again to search the next queries.`);
     refresh();
     return result;
   } catch (error) {
@@ -174,7 +177,8 @@ export const removeOutreachSuppression = action(id, async ({ id }, { toast }) =>
 });
 
 export const retryOutreachResearch = action(id, async ({ id }, { toast }) => {
-  const claimed = await prisma.outreachLead.updateMany({ where: { id, delivery: { is: null }, status: { in: [OutreachLeadStatus.FAILED, OutreachLeadStatus.FILTERED] } }, data: { status: OutreachLeadStatus.DISCOVERED, error: null } });
+  // READY is included so a draft that came out wrong can be researched and written again before approval.
+  const claimed = await prisma.outreachLead.updateMany({ where: { id, delivery: { is: null }, status: { in: [OutreachLeadStatus.FAILED, OutreachLeadStatus.FILTERED, OutreachLeadStatus.READY] } }, data: { status: OutreachLeadStatus.DISCOVERED, error: null } });
   if (!claimed.count) throw new ActionError("That lead cannot be researched again now.");
   const previous = await findLatestJob(outreachLeadJobKey(id));
   if (!previous || !(await retryJob(previous.id))) await startJob(prepareOutreachLeadJob, { leadId: id }, { key: outreachLeadJobKey(id), outreachLeadId: id });
