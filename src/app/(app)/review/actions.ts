@@ -13,6 +13,7 @@ import { GmailSendBlocked, markApplicationSent, sendApplicationEmail } from "@/l
 import { GmailDeliveryUnknown, GmailNotConnected, GmailSendFailed } from "@/lib/gmail/client";
 import { prisma } from "@/lib/prisma";
 import { loadReviewCandidateDetails } from "@/lib/review-data";
+import { applyStatusChange } from "@/lib/status-changes";
 
 const idSchema = z.object({ applicationId: z.string().min(1) });
 const candidateIdsSchema = z.object({ candidateIds: z.array(z.string().min(1)).min(1).max(500) });
@@ -205,6 +206,54 @@ export const retryAutomationCandidate = action(z.object({ candidateId: z.string(
   refresh();
   toast("Retry queued.");
   return null;
+});
+
+/**
+ * Records an application the user sent themselves, outside Dossier, from the posting's link. A filtered or
+ * failed item gets an application made from its posting; a prepared draft is kept with its documents.
+ * Either way it moves to Sent through the status module, so Applications and the dashboard count it.
+ */
+export const markAutomationAppliedManually = action(z.object({ candidateId: z.string().min(1) }), async ({ candidateId }, { toast }) => {
+  const applicationId = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT 1 FROM "AutomationCandidate" WHERE id = ${candidateId} FOR UPDATE`;
+    const candidate = await tx.automationCandidate.findUnique({
+      where: { id: candidateId },
+      include: { posting: true, application: { select: { id: true, reviewState: true, emailDelivery: { select: { status: true } } } } },
+    });
+    if (!candidate || candidate.posting.dismissedAt) throw new ActionError("That review item is no longer available.");
+    if (candidate.application) {
+      if (candidate.application.reviewState !== "PENDING_REVIEW") throw new ActionError("That review item is no longer available.");
+      if (candidate.application.emailDelivery) throw new ActionError("Dossier already tried to send this application. Use Mark sent or Retry send instead.");
+      await tx.application.update({ where: { id: candidate.application.id }, data: { reviewState: "NORMAL" } });
+      await tx.automationCandidate.update({ where: { id: candidateId }, data: { status: "SENT", error: null } });
+      return candidate.application.id;
+    }
+    if (!["FILTERED", "FAILED"].includes(candidate.status)) throw new ActionError("This item is still being prepared. Try again when it finishes.");
+    const { posting } = candidate;
+    const created = await tx.application.create({
+      data: {
+        title: [posting.title, posting.company].filter(Boolean).join(" · ") || "Untitled application",
+        company: posting.company,
+        role: posting.title,
+        location: posting.place,
+        mode: posting.remote ? "Remote" : "",
+        salary: posting.salary,
+        postingUrl: posting.url,
+        postingText: posting.description,
+        userNote: "Applied manually from the posting's link.",
+      },
+      select: { id: true },
+    });
+    await tx.automationCandidate.update({ where: { id: candidateId }, data: { applicationId: created.id, status: "SENT", error: null } });
+    await tx.posting.update({ where: { id: posting.id }, data: { applicationId: created.id, savedAt: posting.savedAt ?? new Date() } });
+    return created.id;
+  });
+  await applyStatusChange(prisma, applicationId, "SENT");
+  refresh();
+  revalidatePath("/applications");
+  revalidatePath("/");
+  toast("Marked as applied. It now counts in Applications and on the dashboard.");
+  return { applicationId };
 });
 
 export const approveAndSend = action(idSchema.extend({ retryUnknown: z.boolean().default(false) }), async ({ applicationId, retryUnknown }, { toast }) => {

@@ -17,6 +17,7 @@ import { reviewHref, type ReviewCandidateDetails, type ReviewListParams, type Re
 import {
   approveAndSend,
   dismissAutomationCandidate,
+  markAutomationAppliedManually,
   dismissAutomationCandidates,
   dismissAutomationDraft,
   keepAutomationDraft,
@@ -340,10 +341,14 @@ export function ReviewQueue({ items, params, total, filtered, page, pages, pageS
               {item.status === "FAILED" ? (
                 <>
                   <Button size="sm" disabled={pending} onClick={() => run(() => retryAutomationCandidate({ candidateId: item.id }))}>Retry</Button>
+                  <Button variant="secondary" size="sm" disabled={pending} onClick={() => run(() => markAutomationAppliedManually({ candidateId: item.id }))}>I applied manually</Button>
                   <Button variant="danger-text" size="sm" disabled={pending} onClick={() => dismiss([item.id], () => dismissAutomationCandidate({ candidateId: item.id }))}>Dismiss</Button>
                 </>
               ) : item.status === "FILTERED" ? (
-                <Button variant="danger-text" size="sm" disabled={pending} onClick={() => dismiss([item.id], () => dismissAutomationCandidate({ candidateId: item.id }))}>Dismiss</Button>
+                <>
+                  <Button variant="secondary" size="sm" disabled={pending} onClick={() => run(() => markAutomationAppliedManually({ candidateId: item.id }))}>I applied manually</Button>
+                  <Button variant="danger-text" size="sm" disabled={pending} onClick={() => dismiss([item.id], () => dismissAutomationCandidate({ candidateId: item.id }))}>Dismiss</Button>
+                </>
               ) : item.applicationId ? (
                 <>
                   {item.delivery === "UNKNOWN" ? (
@@ -352,6 +357,7 @@ export function ReviewQueue({ items, params, total, filtered, page, pages, pageS
                       <Button variant="danger-outline" size="sm" onClick={() => void openSend(item)}>Retry send</Button>
                     </>
                   ) : <Button size="sm" disabled={pending || !gmail.email || loadingDetails.has(item.id)} onClick={() => void openSend(item)}>Approve and send</Button>}
+                  {!item.delivery && <Button variant="secondary" size="sm" disabled={pending} onClick={() => run(() => markAutomationAppliedManually({ candidateId: item.id }))}>I applied manually</Button>}
                   <Button variant="secondary" size="sm" disabled={pending} onClick={() => run(() => keepAutomationDraft({ applicationId: item.applicationId! }))}>Keep as draft</Button>
                   <Button variant="danger-text" size="sm" disabled={pending} onClick={() => dismiss([item.id], () => dismissAutomationDraft({ applicationId: item.applicationId! }))}>Dismiss</Button>
                   {!gmail.email && <Link href="/settings?section=automation" className="self-center text-sm underline">Connect Gmail to send</Link>}
