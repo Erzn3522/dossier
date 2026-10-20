@@ -3,6 +3,7 @@ import "server-only";
 import { Prisma, type PrismaClient } from "@/generated/prisma/client";
 import { encryptApiKey } from "@/lib/ai/api-key";
 import { EXPORT_FORMAT, EXPORT_SCHEMA_VERSION, EXPORT_SCHEMA_VERSIONS, exportSchema, INSTALL_SETTINGS, SECRET_SETTINGS, type DossierExport } from "@/lib/data-export";
+import { emailDiscoverySchema } from "@/lib/email-discovery-data";
 import { encryptSecret, JOB_SOURCE_KEY } from "@/lib/secrets";
 import { createDefaultOutreachCampaign } from "@/lib/outreach/defaults";
 
@@ -68,6 +69,12 @@ function omit<T extends object, K extends keyof T>(value: T, ...keys: K[]): Omit
 }
 
 const json = (value: unknown) => (value === null || value === undefined ? Prisma.DbNull : (value as Prisma.InputJsonValue));
+const matchPercent = ({ matchHit, matchTotal }: { matchHit: number | null; matchTotal: number | null }) =>
+  matchTotal && matchTotal > 0 ? Math.round(((matchHit ?? 0) / matchTotal) * 100) : null;
+const discoveredEmailCount = (value: unknown) => {
+  const discovery = emailDiscoverySchema.safeParse(value);
+  return discovery.success ? discovery.data.candidates.length : 0;
+};
 
 /**
  * Replaces all user data with the export's, in one transaction. Each saved
@@ -182,6 +189,8 @@ export async function importExport(db: PrismaClient, data: DossierExport): Promi
             ...candidate,
             applicationId: candidate.applicationId && applicationIds.has(candidate.applicationId) ? candidate.applicationId : null,
             emailDiscovery: json(candidate.emailDiscovery),
+            matchPercent: matchPercent(candidate),
+            discoveredEmailCount: discoveredEmailCount(candidate.emailDiscovery),
           })),
       });
       await tx.outreachCampaign.createMany({ data: outreachCampaigns });

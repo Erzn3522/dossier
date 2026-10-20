@@ -734,10 +734,14 @@ model AutomationCandidate {
   status            AutomationCandidateStatus @default(DISCOVERED)
   matchHit          Int?
   matchTotal        Int?
+  /// Rounded 0-100 score kept with the raw counts so Review can filter and sort in SQL.
+  matchPercent      Int?
   /// A recipient explicitly supplied by the user after the posting had no usable address.
   recipientOverride String?
   /// Public application addresses found on the web, with their source pages and confidence (emailDiscoverySchema).
   emailDiscovery    Json?
+  /// Number of verified candidates in emailDiscovery; avoids scanning JSON for Review filters.
+  discoveredEmailCount Int                       @default(0)
   reason            String?
   error             String?
   createdAt         DateTime                  @default(now())
@@ -745,6 +749,9 @@ model AutomationCandidate {
 
   @@index([runId, status])
   @@index([status, updatedAt])
+  @@index([status, createdAt])
+  @@index([status, matchPercent])
+  @@index([status, discoveredEmailCount])
 }
 
 // ─── Gmail delivery ──────────────────────────────────────────────────────────

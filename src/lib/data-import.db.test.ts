@@ -179,6 +179,33 @@ describe("importExport (E10-6)", () => {
     expect(JSON.stringify(file)).not.toContain("refreshTokenEnc");
   });
 
+  it("rebuilds Review filter fields when automation candidates are imported", async () => {
+    const search = await prisma().automatedSearch.create({ data: { name: "Daily", query: {} } });
+    const run = await prisma().automationRun.create({ data: { searchId: search.id } });
+    const posting = await prisma().posting.create({ data: { source: "JSEARCH", externalId: "review-derived" } });
+    const candidate = await prisma().automationCandidate.create({
+      data: {
+        runId: run.id,
+        postingId: posting.id,
+        status: "FILTERED",
+        matchHit: 3,
+        matchTotal: 4,
+        matchPercent: 75,
+        discoveredEmailCount: 1,
+        emailDiscovery: {
+          searchedAt: now.toISOString(), queryCount: 1, pagesRead: 1, rankedWith: null, error: null,
+          candidates: [{ email: "jobs@example.com", sourceUrl: "https://example.com/careers", sourceTitle: "Careers", context: "Apply", confidence: "HIGH", reason: "Official page" }],
+        },
+      },
+    });
+    const file = await asFile();
+    expect(file.automationCandidates[0]).not.toHaveProperty("matchPercent");
+    expect(file.automationCandidates[0]).not.toHaveProperty("discoveredEmailCount");
+
+    await importExport(prisma(), file);
+    expect(await prisma().automationCandidate.findUniqueOrThrow({ where: { id: candidate.id } })).toMatchObject({ matchPercent: 75, discoveredEmailCount: 1 });
+  });
+
   it("reads version 1 files, which have no postings", async () => {
     const file = JSON.parse(JSON.stringify(await buildExport(prisma(), { now })));
     const parsed = parseExport(JSON.stringify({ ...file, schemaVersion: 1, postings: undefined, searches: undefined }));

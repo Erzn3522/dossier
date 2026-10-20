@@ -4,7 +4,7 @@ import { EmailSearchUnavailable, searchWeb } from "./searxng";
 
 describe("SearXNG email search", () => {
   it("asks the private JSON API and keeps only web results", async () => {
-    const fetcher = vi.fn(async () => new Response(JSON.stringify({
+    const fetcher = vi.fn(async (_input: Parameters<typeof fetch>[0]) => new Response(JSON.stringify({
       results: [
         { url: "https://example.com/careers", title: "Careers", content: "Join us" },
         { url: "javascript:alert(1)", title: "Bad", content: "" },
@@ -14,7 +14,7 @@ describe("SearXNG email search", () => {
     await expect(searchWeb("Example jobs", { baseUrl: "http://searxng:8080/private", fetcher })).resolves.toEqual([
       { url: "https://example.com/careers", title: "Careers", content: "Join us" },
     ]);
-    const url = new URL(String(fetcher.mock.calls[0][0]));
+    const url = new URL(String(fetcher.mock.calls[0]![0]));
     expect(url.pathname).toBe("/private/search");
     expect(url.searchParams.get("q")).toBe("Example jobs");
     expect(url.searchParams.get("format")).toBe("json");

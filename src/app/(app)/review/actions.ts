@@ -6,13 +6,13 @@ import { z } from "zod";
 import { action, ActionError } from "@/lib/action";
 import { isEmailAddress } from "@/lib/application-email";
 import { MISSING_APPLICATION_EMAIL } from "@/lib/automation/filter";
-import { emailDiscoverySchema } from "@/lib/email-discovery-data";
 import { emailDiscoveryConfigured } from "@/lib/email-discovery/searxng";
 import { automationCandidateJobKey, prepareAutomationCandidateJob } from "@/lib/jobs/prepare-automation-candidate";
 import { findLatestJob, retryJob, startJob } from "@/lib/jobs/runner";
 import { GmailSendBlocked, markApplicationSent, sendApplicationEmail } from "@/lib/gmail/send-application";
 import { GmailDeliveryUnknown, GmailNotConnected, GmailSendFailed } from "@/lib/gmail/client";
 import { prisma } from "@/lib/prisma";
+import { loadReviewCandidateDetails } from "@/lib/review-data";
 
 const idSchema = z.object({ applicationId: z.string().min(1) });
 const candidateIdsSchema = z.object({ candidateIds: z.array(z.string().min(1)).min(1).max(500) });
@@ -20,7 +20,13 @@ const recipientSchema = z.object({
   candidateId: z.string().min(1),
   recipient: z.string().trim().refine(isEmailAddress, "Enter one valid email address."),
 });
-const refresh = () => revalidatePath("/", "layout");
+const refresh = () => revalidatePath("/review");
+
+export const loadAutomationCandidateDetails = action(z.object({ candidateId: z.string().min(1) }), async ({ candidateId }) => {
+  const details = await loadReviewCandidateDetails(candidateId);
+  if (!details) throw new ActionError("That review item is no longer available.");
+  return details;
+});
 
 export const provideAutomationRecipient = action(recipientSchema, async ({ candidateId, recipient }, { toast }) => {
   const updated = await prisma.automationCandidate.updateMany({
@@ -52,6 +58,7 @@ export const searchForAutomationRecipient = action(z.object({ candidateId: z.str
       applicationId: null,
       status: "FILTERED",
       reason: MISSING_APPLICATION_EMAIL,
+      discoveredEmailCount: 0,
     },
     data: { status: "DISCOVERED", reason: null, error: null },
   });
@@ -71,23 +78,21 @@ export const searchForAutomationRecipients = action(candidateIdsSchema, async ({
       applicationId: null,
       status: "FILTERED",
       reason: MISSING_APPLICATION_EMAIL,
+      discoveredEmailCount: 0,
     },
-    select: { id: true, emailDiscovery: true },
+    select: { id: true },
   });
-  const withoutFoundEmail = candidates.filter((candidate) => {
-    const discovery = emailDiscoverySchema.safeParse(candidate.emailDiscovery);
-    return !discovery.success || discovery.data.candidates.length === 0;
-  });
-  if (withoutFoundEmail.length === 0) throw new ActionError("None of the selected items still need an email search.");
+  if (candidates.length === 0) throw new ActionError("None of the selected items still need an email search.");
 
   const queued: string[] = [];
-  for (const candidate of withoutFoundEmail) {
+  for (const candidate of candidates) {
     const claimed = await prisma.automationCandidate.updateMany({
       where: {
         id: candidate.id,
         applicationId: null,
         status: "FILTERED",
         reason: MISSING_APPLICATION_EMAIL,
+        discoveredEmailCount: 0,
       },
       data: { status: "DISCOVERED", reason: null, error: null },
     });

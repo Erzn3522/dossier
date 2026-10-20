@@ -1,3 +1,4 @@
+import { revalidatePath } from "next/cache";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MISSING_APPLICATION_EMAIL } from "@/lib/automation/filter";
@@ -67,6 +68,7 @@ describe("dismissAutomationCandidates", () => {
       status: "FILTERED",
       reason: "Dismissed by you.",
     });
+    expect(revalidatePath).toHaveBeenCalledWith("/review");
   });
 });
 
@@ -85,6 +87,7 @@ describe("searchForAutomationRecipients", () => {
         postingId: foundPosting.id,
         status: "FILTERED",
         reason: MISSING_APPLICATION_EMAIL,
+        discoveredEmailCount: 1,
         emailDiscovery: {
           searchedAt: "2026-10-19T10:00:00.000Z",
           queryCount: 3,

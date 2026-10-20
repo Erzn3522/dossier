@@ -70,6 +70,9 @@ export const prepareAutomationCandidateJob = defineJob({
       await step("Comparing the posting with your profile");
       const extraction = await extractPosting(provider, { posting: text }, { ...options, signal });
       const matching = await matchRequirements(provider, { requirements: extraction.data.requirements, profile }, { ...options, signal });
+      const matchHit = matching.data.items.filter((item) => item.result !== "gap").length;
+      const matchTotal = matching.data.items.length;
+      const matchPercent = matchTotal > 0 ? Math.round((matchHit / matchTotal) * 100) : null;
       const eligibility = automationEligibility(extraction.data, matching.data, {
         threshold: settings.automationMatchThreshold,
         blockCriticalGaps: settings.automationBlockCriticalGaps,
@@ -87,14 +90,18 @@ export const prepareAutomationCandidateJob = defineJob({
             },
             { ...options, signal },
           );
-          await prisma.automationCandidate.update({ where: { id: candidateId }, data: { emailDiscovery: discovery } });
+          await prisma.automationCandidate.update({
+            where: { id: candidateId },
+            data: { emailDiscovery: discovery, discoveredEmailCount: discovery.candidates.length },
+          });
         }
         await prisma.automationCandidate.update({
           where: { id: candidateId },
           data: {
             status: AutomationCandidateStatus.FILTERED,
-            matchHit: matching.data.items.filter((item) => item.result !== "gap").length,
-            matchTotal: matching.data.items.length,
+            matchHit,
+            matchTotal,
+            matchPercent,
             reason: eligibility.reason,
             error: null,
           },
@@ -107,8 +114,9 @@ export const prepareAutomationCandidateJob = defineJob({
         where: { id: candidateId },
         data: {
           status: AutomationCandidateStatus.PREPARING,
-          matchHit: matching.data.items.filter((item) => item.result !== "gap").length,
-          matchTotal: matching.data.items.length,
+          matchHit,
+          matchTotal,
+          matchPercent,
           reason: null,
         },
       });

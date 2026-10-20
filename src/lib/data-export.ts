@@ -353,7 +353,7 @@ export async function buildExport(
       tx.postingSearch.findMany({ orderBy: { createdAt: "asc" } }),
       tx.automatedSearch.findMany({ orderBy: { createdAt: "asc" } }),
       tx.automationRun.findMany({ orderBy: { startedAt: "asc" } }),
-      tx.automationCandidate.findMany({ orderBy: { createdAt: "asc" } }),
+      tx.automationCandidate.findMany({ omit: { matchPercent: true, discoveredEmailCount: true }, orderBy: { createdAt: "asc" } }),
       tx.outreachCampaign.findMany({ orderBy: { createdAt: "asc" } }),
       tx.outreachRun.findMany({ orderBy: { startedAt: "asc" } }),
       tx.outreachLead.findMany({ orderBy: { createdAt: "asc" } }),
