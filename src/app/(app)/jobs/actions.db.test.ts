@@ -3,6 +3,7 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vites
 import { json, stubFetch } from "@/lib/ai/test-http";
 import { createAutomatedSearch, runAutomatedSearches } from "@/lib/automation/searches";
 import { clearJobSearchCache } from "@/lib/job-search/cache";
+import { clearFeedSnapshots } from "@/lib/job-search/feed";
 import { EMPTY_QUERY, type FoundPosting } from "@/lib/job-search/search";
 import { encryptSecret, JOB_SOURCE_KEY } from "@/lib/secrets";
 import { saveSettings } from "@/lib/settings-data";
@@ -53,6 +54,7 @@ const query = { ...EMPTY_QUERY, keywords: "researcher", country: "de" };
 beforeEach(async () => {
   await resetDatabase(prisma());
   clearJobSearchCache();
+  clearFeedSnapshots();
   await saveSettings({ jobSource: "JSEARCH", jsearchKeyEnc: encryptSecret(JOB_SOURCE_KEY, "ak_test") });
 });
 afterEach(() => vi.unstubAllGlobals());
@@ -61,16 +63,26 @@ afterAll(() => prisma().$disconnect());
 describe("Find jobs actions", () => {
   it("uses the saved number of pages for an automatic search", async () => {
     let page = 0;
-    const requests = stubFetch(() => {
+    const requests = stubFetch(({ url }) => {
+      if (url.hostname === "remoteok.com") return json([]);
+      if (url.hostname === "remotive.com" || url.hostname === "himalayas.app" || url.hostname === "jobicy.com") return json({ jobs: [] });
+      if (url.hostname === "www.arbeitnow.com") return json({ data: [], links: {} });
+      if (url.hostname === "weworkremotely.com") return new Response("<rss><channel></channel></rss>", { headers: { "content-type": "application/rss+xml" } });
       page += 1;
       return json({ status: "OK", data: { jobs: [], cursor: page === 1 ? "PAGE-2" : null } });
     });
     const id = await createAutomatedSearch("Daily research", query, 2);
 
     await expect(runAutomatedSearches({ searchId: id })).resolves.toEqual({ started: 0, skipped: false });
-    expect(requests).toHaveLength(2);
-    expect(requests[1].url.searchParams.get("cursor")).toBe("PAGE-2");
+    const jsearchRequests = requests.filter((request) => request.url.hostname.includes("openwebninja"));
+    expect(requests).toHaveLength(8);
+    expect(jsearchRequests).toHaveLength(2);
+    expect(jsearchRequests[1].url.searchParams.get("cursor")).toBe("PAGE-2");
     expect(await prisma().automatedSearch.findUniqueOrThrow({ where: { id } })).toMatchObject({ pagesPerRun: 2 });
+    const run = await prisma().automationRun.findFirstOrThrow({ where: { searchId: id } });
+    expect((run.sourceStats as { source: string; error: string | null }[]).map(({ source, error }) => [source, error])).toEqual([
+      ["JSEARCH", null], ["REMOTE_OK", null], ["REMOTIVE", null], ["WE_WORK_REMOTELY", null], ["HIMALAYAS", null], ["JOBICY", null], ["ARBEITNOW", null],
+    ]);
   });
 
   it("runs a search and keeps it, adds its next page, and removes it (E14-10)", async () => {

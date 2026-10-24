@@ -450,6 +450,8 @@ model Application {
   /// Saved, not fetched (NEW-1).
   postingUrl          String                 @default("")
   postingText         String                 @default("")
+  /// Quick apply: what to change in the CV for this posting (resumeAdviceSchema).
+  resumeAdvice        Json?
   /// What the AI read from the posting (extractedSchema).
   extracted           Json?
   /// The prompt version that wrote `extracted`, e.g. "extract-posting@1" (E6-5).
@@ -613,6 +615,12 @@ enum PostingSource {
   JSEARCH
   ADZUNA
   ARBEITSAGENTUR
+  REMOTE_OK
+  REMOTIVE
+  WE_WORK_REMOTELY
+  HIMALAYAS
+  JOBICY
+  ARBEITNOW
 }
 
 /// A posting from Find jobs that the user kept (E14-5): saved, dismissed, or
@@ -678,7 +686,8 @@ model AutomatedSearch {
   id          String          @id @default(cuid())
   name        String
   enabled     Boolean         @default(true)
-  /// JSearch pages requested per run. Each page consumes one API request.
+  /// Search depth: 1–3 JSearch pages and a matching 10–30 candidate limit.
+  /// Keyless feeds are fetched once per run and share that candidate limit.
   pagesPerRun Int             @default(1)
   /// searchQuerySchema from src/lib/job-search/search.ts.
   query       Json
@@ -706,6 +715,8 @@ model AutomationRun {
   prepared   Int                   @default(0)
   filtered   Int                   @default(0)
   failed     Int                   @default(0)
+  /// Per-source matched counts and isolated errors for this run.
+  sourceStats Json?
   error      String?
   candidates AutomationCandidate[]
   startedAt  DateTime              @default(now())

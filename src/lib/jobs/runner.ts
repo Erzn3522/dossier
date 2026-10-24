@@ -110,7 +110,8 @@ export function isFinished(job: Pick<JobView, "status">): boolean {
 export async function startJob<I, R>(
   definition: JobDefinition<I, R>,
   input: NoInfer<I>,
-  options: { key?: string; applicationId?: string; outreachLeadId?: string } = {},
+  /** `first`: someone is waiting on the page for it, so it goes ahead of queued background work. */
+  options: { key?: string; applicationId?: string; outreachLeadId?: string; first?: boolean } = {},
 ): Promise<string> {
   defineJob(definition);
   const job = await prisma.job.create({
@@ -123,11 +124,11 @@ export async function startJob<I, R>(
     },
     select: { id: true },
   });
-  enqueue(job.id);
+  enqueue(job.id, options.first);
   return job.id;
 }
 
-/** Runs a failed job again, as the same job with the same input. */
+/** Runs a failed job again, as the same job with the same input; someone is waiting for it, so it goes first. */
 export async function retryJob(id: string): Promise<boolean> {
   const { count } = await prisma.job.updateMany({
     where: { id, status: JobStatus.FAILED },
@@ -135,7 +136,7 @@ export async function retryJob(id: string): Promise<boolean> {
   });
   if (count === 0) return false;
   await notify(id);
-  enqueue(id);
+  enqueue(id, true);
   return true;
 }
 
@@ -186,8 +187,11 @@ async function finish(
   if (count > 0) await notify(id);
 }
 
-function enqueue(id: string): void {
-  if (!state.queue.includes(id)) state.queue.push(id);
+function enqueue(id: string, first = false): void {
+  if (!state.queue.includes(id)) {
+    if (first) state.queue.unshift(id);
+    else state.queue.push(id);
+  }
   void pump();
 }
 

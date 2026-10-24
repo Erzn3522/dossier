@@ -74,6 +74,12 @@ describe("credentialsFor", () => {
   it("gives each source its own key", () => {
     expect(credentialsFor(config, "JSEARCH")).toEqual({ key: "ak_saved", host: "rapidapi" });
     expect(credentialsFor(config, "ARBEITSAGENTUR")).toEqual({});
+    expect(credentialsFor(config, "REMOTE_OK")).toEqual({});
+    expect(credentialsFor(config, "REMOTIVE")).toEqual({});
+    expect(credentialsFor(config, "WE_WORK_REMOTELY")).toEqual({});
+    expect(credentialsFor(config, "HIMALAYAS")).toEqual({});
+    expect(credentialsFor(config, "JOBICY")).toEqual({});
+    expect(credentialsFor(config, "ARBEITNOW")).toEqual({});
   });
 
   it("says what's missing", () => {

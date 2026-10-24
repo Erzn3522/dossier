@@ -29,13 +29,19 @@ beforeEach(() => {
 });
 
 describe("JobSearchSection", () => {
-  it("offers the three sources and Off, as a radio group, Off by default", () => {
+  it("offers every source and Off, as a radio group, Off by default", () => {
     render(<JobSearchSection initial={off} />);
     expect(screen.getByRole("heading", { name: "Job search" })).toBeInTheDocument();
     expect(screen.getAllByRole("radio").map((radio) => radio.getAttribute("aria-label"))).toEqual([
       "JSearch",
       "Adzuna",
       "Bundesagentur für Arbeit",
+      "Remote OK",
+      "Remotive",
+      "We Work Remotely",
+      "Himalayas",
+      "Jobicy",
+      "Arbeitnow",
       "Off",
     ]);
     expect(screen.getByRole("radio", { name: "Off" })).toBeChecked();
@@ -88,6 +94,13 @@ describe("JobSearchSection", () => {
     render(<JobSearchSection initial={withSource({ source: "ARBEITSAGENTUR" })} />);
     expect(screen.queryByLabelText(/key/i)).not.toBeInTheDocument();
     expect(screen.getByText(/isn't an official API/)).toBeInTheDocument();
+  });
+
+  it("needs no key for public remote feeds and explains local filtering", () => {
+    render(<JobSearchSection initial={withSource({ source: "REMOTIVE" })} />);
+    expect(screen.queryByLabelText(/key/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("note")).toHaveTextContent("Your search and profile aren't sent.");
+    expect(screen.getByText(/applies your country, date and keyword filters locally/)).toBeInTheDocument();
   });
 
   it("shows keys from the environment and keys that can't be read", () => {

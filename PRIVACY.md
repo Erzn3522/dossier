@@ -2,7 +2,7 @@
 
 Dossier is a single-user app you run on your own server. This page is for whoever runs it: what Dossier keeps and for how long, what leaves your server and who receives it, and what deleting something removes. For how the data is protected, see [SECURITY.md](SECURITY.md).
 
-In short: everything you enter is kept in your own PostgreSQL database and data directory. What leaves your server goes to the AI provider and job source you choose, plus a daily usage ping and update check you can turn off. With a local model, your profile, postings and documents never leave your server. With a hosted one, keeping the database on your server covers only part of where your data goes.
+In short: everything you enter is kept in your own PostgreSQL database and data directory. What leaves your server goes to the AI provider and job sources you use, plus a daily usage ping and update check you can turn off. With a local model, your profile, postings and documents never leave your server. With a hosted one, keeping the database on your server covers only part of where your data goes.
 
 ## What Dossier keeps
 
@@ -33,7 +33,8 @@ Exports you download and database dumps you take are copies outside Dossier's re
 | Who receives it | When | What |
 |---|---|---|
 | A hosted AI provider (OpenAI-compatible or Anthropic) | Each AI task, while one is chosen in Settings → AI provider | See [below](#what-a-hosted-ai-provider-receives) |
-| The job source you chose (JSearch, Adzuna or the Bundesagentur für Arbeit) | Each search in Find jobs, which is off until you choose a source | What you search for: keywords, place, country, radius and filters. Nothing from your profile: it only fills in the form |
+| The job source you chose (JSearch, Adzuna, the Bundesagentur für Arbeit, Remote OK, Remotive or We Work Remotely) | Each manual search in Find jobs, which is off until you choose a source | What you search for: keywords, place, country, radius and filters. Nothing from your profile: it only fills in the form |
+| JSearch, Remote OK, Remotive and We Work Remotely | When an enabled automatic search runs | JSearch receives that search's keywords, place, country and filters. The three public feeds receive a request for their common feed; Dossier applies the profile's search filters locally. None receives your career profile |
 | The site a posting is on | When you press **Fetch** on a new application, and for a Find jobs posting that came with only its start | A request for the posting's page, from your server, never to an address on your own network |
 | SearXNG's enabled search engines and result sites | When automated email discovery is configured and an otherwise eligible posting has no application address | The company and role as search terms; then requests for a limited number of public result pages, from your server |
 | SearXNG's enabled search engines and candidate company sites | When you enable cold outreach and a campaign runs | Campaign keywords (also translated into the local language for some countries), the countries and cities within the campaign's regions, and the remote preference as search terms; then requests from your server for robots.txt and up to six readable public pages on each candidate official domain, tried in a fixed order (home, about, contact, careers, imprint, team, jobs and their common variants) |

@@ -1,5 +1,6 @@
 // The AI tasks of PRD §7 (E6-5). Each takes a provider, its input and the
 // task options, and returns its data with the prompt version to save.
+export { ADVISE_RESUME_VERSION, adviseResume } from "./advise-resume";
 export { EXTRACT_POSTING_VERSION, extractPosting } from "./extract-posting";
 export { EXTRACT_PROFILE_VERSION, extractProfile } from "./extract-profile";
 export { MATCH_REQUIREMENTS_VERSION, matchRequirements } from "./match-requirements";

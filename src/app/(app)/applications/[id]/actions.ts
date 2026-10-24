@@ -156,8 +156,6 @@ export const restoreUnit = action(
 );
 
 /** The answer on the Job posting tab, where there's nothing to change. */
-const POSTING_REPLY = "I can change the resume, the cover letter or the email. Switch to one of them, or hover a section and pick “Ask AI”.";
-
 /**
  * Sends a message from the Refine with AI panel (E8-5): saves it and starts
  * the reply in the background, returning the job's id. On the Job posting
@@ -166,7 +164,8 @@ const POSTING_REPLY = "I can change the resume, the cover letter or the email. S
 export const sendMessage = action(
   z.object({
     id: z.string().min(1),
-    text: z.string().trim().min(1, "Write what should change first.").max(2000),
+    // Long enough for an application form's questions pasted in.
+    text: z.string().trim().min(1, "Write what should change first.").max(8000),
     /** The document on screen; null on the Job posting and Notes tabs, and on the Email tab before there's an email. */
     viewing: z.enum(DocumentKind).nullable(),
     /** The unit picked with "Ask AI". */
@@ -174,18 +173,6 @@ export const sendMessage = action(
   }),
   async ({ id, text, viewing, target }) => {
     if (!(await prisma.application.count({ where: { id } }))) throw new ActionError(GONE);
-
-    if (!viewing && !target) {
-      const now = Date.now();
-      await prisma.chatMessage.createMany({
-        data: [
-          { applicationId: id, role: ChatRole.USER, text, createdAt: new Date(now) },
-          { applicationId: id, role: ChatRole.AI, text: POSTING_REPLY, createdAt: new Date(now + 1) },
-        ],
-      });
-      refresh(id);
-      return { jobId: null };
-    }
 
     if (!(await isAiConfigured())) throw new ActionError("That needs an AI provider. Choose one in Settings → AI provider.");
     if ((await findUnfinishedJobs(refineJobKey(id))).length > 0) {

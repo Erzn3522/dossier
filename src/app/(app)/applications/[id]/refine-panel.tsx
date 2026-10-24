@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
+import { toast } from "@/components/toast";
 import { Button } from "@/components/ui/button";
+import { copyText } from "@/lib/copy-text";
 import { cn } from "@/lib/cn";
 
 import type { Tab } from "./tabs";
@@ -25,12 +27,13 @@ export type ChatEntry = {
 /** The unit the next message is about, picked with "Ask AI". */
 export type ChatTarget = { label: string; name: string };
 
+const QUESTIONS = "Or paste a question from the application form and I'll answer it for you.";
 const SUBTITLES: Record<Tab, string> = {
-  resume: "Ask for changes to your tailored resume. I'll only use what's in your profile.",
-  letter: "Ask for changes to your cover letter. I'll only use what's in your profile.",
-  email: "Ask for changes to your email. I'll only use what's in your profile.",
-  posting: "Switch to the resume, cover letter or email to make changes.",
-  notes: "Switch to the resume, cover letter or email to make changes.",
+  resume: `Ask for changes to your tailored resume. ${QUESTIONS}`,
+  letter: `Ask for changes to your cover letter. ${QUESTIONS}`,
+  email: `Ask for changes to your email. ${QUESTIONS}`,
+  posting: "Ask about the posting, or paste a question from the application form and I'll answer it for you.",
+  notes: "Ask about the posting, or paste a question from the application form and I'll answer it for you.",
 };
 
 /**
@@ -105,7 +108,7 @@ export function RefinePanel({
         </div>
 
         <div className="flex flex-col gap-2.5 border-t border-line px-6 pt-3.5 pb-6">
-          {!aiReady && tab !== "posting" && (
+          {!aiReady && (
             <p className="text-meta text-muted">
               Refining needs an AI provider.{" "}
               <Link href="/settings?section=ai" className="font-medium text-ink underline underline-offset-2">
@@ -146,10 +149,10 @@ export function RefinePanel({
             )}
             <textarea
               ref={input}
-              aria-label="Ask for a change"
+              aria-label="Ask for a change or a question"
               rows={2}
               value={draft}
-              placeholder={target ? `What should change in the ${target.name}?` : "Ask for a change, e.g. “sound more confident”"}
+              placeholder={target ? `What should change in the ${target.name}?` : "Ask for a change or paste a question, e.g. “Why do you want to work here?”"}
               onChange={(event) => setDraft(event.target.value)}
               onKeyDown={(event) => {
                 // Enter sends, Shift+Enter starts a new line; not while an input method is composing.
@@ -201,6 +204,15 @@ function Bubble({ message }: { message: ChatEntry }) {
         ),
       )}
       {foot?.kind === "text" && <p className="mt-0.5 text-label text-muted">{foot.text}</p>}
+      {!message.opening && !message.canUndo && message.id !== "sending" && (
+        <button
+          type="button"
+          onClick={() => void copyText(message.text).then((copied) => toast(copied ? "Copied the answer." : "That didn't copy. Select the text and copy it yourself."))}
+          className="self-start text-label text-muted underline underline-offset-2 hover:text-ink"
+        >
+          Copy
+        </button>
+      )}
     </div>
   );
 }

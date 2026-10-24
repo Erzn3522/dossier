@@ -19,6 +19,8 @@
 
 Dossier keeps your career history in one profile and turns it into a clean resume. For every job you apply to, it reads the posting, shows how you match, and drafts a tailored resume and cover letter that only use facts from your profile. You refine them in a chat, download them as PDFs and track each application from draft to offer.
 
+This fork goes further than the original: a daily automated job search across seven sources, a Review queue where the AI prepares each application for you to approve, **Quick apply** for postings you find yourself, answers to application-form questions, and sending through your own Gmail. [What this fork adds](#what-this-fork-adds) sums it up.
+
 It's for one person on a small server: one password, your data in your own PostgreSQL database, and an AI model of your choice. That can be a local model through Ollama, so your profile and documents never leave your server, or a hosted one (any OpenAI-compatible API, or Anthropic), which then receives what it writes from. [Privacy](#privacy) says what goes where.
 
 ## Demo
@@ -31,11 +33,14 @@ It's for one person on a small server: one password, your data in your own Postg
 
 - **Profile:** basics, skills and languages, experience, education and references, in the order you choose, with a strength meter. Start it from an existing resume (PDF, Word or Markdown) if you like.
 - **Base resume:** twelve themes and a theme builder, previewed live and printed to PDF on the server. Duplicate themes, or share them as files.
-- **Find jobs:** search postings near your city, or anywhere you choose, through JSearch (LinkedIn, Indeed and more), Adzuna or Germany's Bundesagentur für Arbeit. Save the good ones, dismiss the rest, and start an application from a posting with one click.
+- **Find jobs:** search postings near your city, or anywhere you choose, through JSearch (LinkedIn, Indeed and more), Adzuna, Germany's Bundesagentur für Arbeit, Remote OK, Remotive, We Work Remotely, Himalayas, Jobicy or Arbeitnow. Save the good ones, dismiss the rest, and start an application from a posting with one click.
 - **New application:** paste a posting; Dossier pulls out the details and requirements, matches them against your profile, and writes a tailored resume and cover letter in the tone you pick.
 - **Never invents experience:** drafts only use facts from your profile. What the posting asks for and your profile doesn't have is shown as a gap, not made up.
-- **Refine:** ask for changes in a chat, edit or regenerate any part (every part of the cover letter too: sender, date, recipient, greeting and sign-off, written in the letter's language), undo AI changes or go back to any earlier version, keep private notes.
-- **Send:** an email to go with each application, to whoever the posting says to send it to, ready to copy or open in your mail app, with the resume and cover letter PDFs to attach. Edit, rewrite or refine it like the documents.
+- **Refine:** ask for changes in a chat, edit or regenerate any part (every part of the cover letter too: sender, date, recipient, greeting and sign-off, written in the letter's language), undo AI changes or go back to any earlier version, keep private notes. Paste a question from the company's application form ("Why do you want to work here?") and the chat answers it in your voice, ready to paste, without touching the documents.
+- **Automated search:** saved search profiles run every day across seven sources; new postings are matched, filtered and prepared in the background.
+- **Review:** every prepared application waits for your approval, with a live progress bar while the AI works and filters by status, text, match range, work mode, source and profile.
+- **Quick apply:** found a job yourself? Give its link or paste it, and get what to fix in your CV, a cover letter, a tailored CV and an email you can send with Gmail.
+- **Send:** an email to go with each application, written by you to the company, to whoever the posting says to send it to. Copy it, open it in your mail app, or send it with the resume and cover letter attached through your connected Gmail, one confirmed email at a time. Edit, rewrite or refine it like the documents.
 - **Track:** a board and a table of every application, and a dashboard with your funnel (last 30 days, 90 days or all time), a week-by-week chart and what's worth a look next, upcoming interviews included.
 - **Your data:** export and import everything as one file, nightly backups, and Delete everything.
 
@@ -179,7 +184,7 @@ Dossier is configured with environment variables; everything else is set in the 
 | `DOSSIER_AI_MODEL` | per provider | The model to use, e.g. `qwen2.5:7b` or `claude-sonnet-5`. |
 | `DOSSIER_AI_KEY` | none | The API key for a hosted provider. |
 | `DOSSIER_AI_TIMEOUT_SECONDS` | `300` local, `120` hosted | How long one AI request may take. |
-| `DOSSIER_JOBS_SOURCE` | off | `jsearch`, `adzuna`, `arbeitsagentur` or `off`. A default for Settings → Job search; a choice saved there wins. |
+| `DOSSIER_JOBS_SOURCE` | off | `jsearch`, `adzuna`, `arbeitsagentur`, `remote-ok`, `remotive`, `we-work-remotely`, `himalayas`, `jobicy`, `arbeitnow` or `off`. A default for Settings → Job search; a choice saved there wins. |
 | `DOSSIER_JSEARCH_KEY` | none | A JSearch key, from OpenWeb Ninja or RapidAPI. |
 | `DOSSIER_JSEARCH_HOST` | `openwebninja` | Where that key is from: `openwebninja` or `rapidapi`. |
 | `DOSSIER_ADZUNA_APP_ID`, `DOSSIER_ADZUNA_KEY` | none | Adzuna's app ID and key. |
@@ -225,12 +230,22 @@ Find jobs is off until you pick a source in **Settings → Job search**. LinkedI
 | **JSearch** | Google for Jobs: postings from LinkedIn, Indeed, Glassdoor, Stepstone and company sites, in most countries, with their whole text. | A key from [OpenWeb Ninja](https://www.openwebninja.com/api/jsearch) or [RapidAPI](https://rapidapi.com/letscrape-6bRBa3QguO5/api/jsearch). The free plan has 200 searches a month; each page of results is one. |
 | **Adzuna** | Adzuna's own index in 19 countries. It only shares the start of each posting; Dossier fetches the rest from the posting's page. | A free app ID and key from [Adzuna's developer site](https://developer.adzuna.com/signup), about 250 searches a day. |
 | **Bundesagentur für Arbeit** | Germany's federal job board, with whole postings. Germany only. | No key, free. It isn't an official API (it's the access the agency's own site uses), so it can change without notice. |
+| **Remote OK** | Remote OK's worldwide remote-job feed, filtered by Dossier. | Public JSON feed; free and no key. Results link back to Remote OK. |
+| **Remotive** | Curated worldwide remote jobs, published with an intentional delay. | Public API; free and no key. Dossier shares one six-hour snapshot across searches and links back to Remotive. |
+| **We Work Remotely** | Worldwide remote jobs from We Work Remotely. | Public RSS feed; free and no key. Results link back to We Work Remotely. |
+| **Himalayas** | Worldwide remote jobs, searched by keyword and country. | Public API; free and no key. Answers are cached for a day; its application links are kept unchanged and credited to Himalayas. |
+| **Jobicy** | Remote jobs from Jobicy's public API. | Free and no key. Read at most once an hour, as Jobicy asks, and credited to Jobicy. |
+| **Arbeitnow** | Jobs from European companies, many in Germany, on site and remote. | Public job-board API; free and no key. Cached for an hour and credited to Arbeitnow. |
 
 The search starts from your profile's city, country and current role; change the place, radius (10 to 200 km), how recent and Remote only as you like. Every search is kept with what it found until you remove it, under **Past searches**, so going back to one, or reloading, doesn't spend another search.
 
 ## Automated search and Gmail
 
-Under **Find jobs**, save one or more searches as automatic profiles. **Settings → Automation** controls the daily time and IANA time zone (08:00 UTC by default), the match threshold and mandatory language/experience filtering. Daylight-saving changes follow the selected zone automatically. Each profile can read 1–3 result pages per run (up to 10 postings and one JSearch API request per page). Eligible postings with an explicit application email address are prepared one at a time and appear under **Review**. Dossier never guesses an address and never sends a batch: each email needs its own confirmation.
+Under **Find jobs**, save one or more searches as automatic profiles. **Settings → Automation** controls the daily time and IANA time zone (08:00 UTC by default), the match threshold and mandatory language/experience filtering. Daylight-saving changes follow the selected zone automatically. Every profile searches seven sources in parallel: JSearch, Remote OK, Remotive, We Work Remotely, Himalayas, Jobicy and Arbeitnow. A source that fails doesn't stop the others; the last run's matches and errors are shown per source on **Find jobs**. JSearch gets a 20-second timeout and one retry on a network or server error. Dossier filters the keyless feeds locally (date, country, remote), removes duplicates across all profiles by link and by company and role, and round-robins the sources, so a 30-candidate run takes about four or five from each source when every source has enough matches, while unused capacity moves to sources with more results. Keywords can be alternatives in quotes, e.g. `"computer vision" OR "machine vision" OR "robotics engineer"`; plain keywords still all have to match. The 10–30 limit bounds the slower AI analysis, not the number of feed entries scanned.
+
+While a run is in progress, **Review** shows a progress bar: profiles searched, postings scanned, how many went to the AI and how many it has finished, with an estimate of the time left. It refreshes itself until the AI is done. Filter the queue by status (ready, filtered out, waiting for the AI, failed), text, a match range, work mode, source and search profile, and sort it by date, match or company.
+
+To replace every automatic profile at once, `docker/bin/yarn configure-job-automation` sets up the 35 city profiles in `src/lib/automation/profile-plan.ts` (EU capitals and tech hubs, Slovenia and Türkiye; remote-only except in Slovenia; last 7 days, 3 pages each) and turns the daily run on a couple of minutes later in `Europe/Ljubljana`. It deletes the old profiles, their runs and their unreviewed Review items, and keeps manual searches, saved and dismissed postings and every application. It refuses to run while other AI work is still queued. Edit the plan file to make it yours. Eligible postings with an explicit application email address are prepared one at a time and appear under **Review**. Dossier never guesses an address and never sends a batch: each email needs its own confirmation.
 
 When SearXNG is configured, an otherwise eligible posting without an address triggers a public web search. Dossier reads a small number of result pages, extracts only addresses actually present on those pages, and asks the configured AI model to rank those candidates. It never asks the model to invent an address. Review shows every candidate with its source and confidence; you must choose one before Dossier prepares the application.
 
@@ -266,6 +281,16 @@ To connect Gmail:
 5. Open **Settings → Automation → Connect Gmail**.
 
 The OAuth grant uses identity plus `gmail.send`; it cannot read the inbox. The refresh token is encrypted with an installation-specific key derived from `DOSSIER_SECRET`, is excluded from exports and must be reconnected after importing onto another install or changing `DOSSIER_SECRET`. If Gmail does not confirm a send before the network times out, Dossier does not retry automatically: check Gmail Sent, then choose **Mark sent** or the warned **Retry send** action.
+
+## Quick apply
+
+**Quick apply** (`/apply`) is for postings you find yourself. Give the posting's link and press **Fetch the posting**, or paste its text. Optionally add the address to send the application to and a note (a referral, why this company). Dossier then reads the posting, matches it against your profile and writes, in one go:
+
+- **What to fix in your CV:** requirements your profile doesn't show and skills not tied to a role, found by code, followed by up to eight concrete suggestions from the AI (what to lead with, what to rewrite, words the posting uses). It never suggests claiming something your profile doesn't have; it says "if you have …, add …" instead.
+- **A cover letter** and **a tailored CV**, as for any application.
+- **An email** from you to the company, to the address you gave or the one in the posting. Edit it on the page and **Send with Gmail**: the tailored CV and the cover letter go along as PDFs, after you confirm.
+
+Each Quick apply is also a Draft under **Applications**, where the chat can refine it further. A Quick apply goes ahead of the automated search's queued work, so it starts as soon as the AI finishes its current posting. Some job sites build the posting in the browser with JavaScript; Dossier can't fetch those and says so: open the link, copy the posting and paste it.
 
 ## Backups and restore
 
@@ -332,7 +357,7 @@ Everything you enter is kept in your PostgreSQL database and data directory. [PR
 - **Task data:** what an AI task was given and wrote (a posting being read, a resume's text, drafts you didn't turn into an application) is deleted after 24 hours, or as long as Settings → Your data says. Deleting an application deletes its task data at once.
 - **Usage ping:** on each day you use Dossier, your server sends `telemetry.dossier.aien.me` a random install ID and the version number, once, so the project knows how many installs are in use and how often. Nothing else is sent. Set `DOSSIER_TELEMETRY=off` to stop it. [PRIVACY.md](PRIVACY.md#usage-ping) says what the receiver keeps, for how long, and how to have it deleted.
 - **Update check:** once on each day you use Dossier, and when you press **Check for updates**, your server asks GitHub for the latest release, and sends nothing about you or your install. Switch the daily check off in Settings → About.
-- **When you ask for it:** Find jobs, off until you choose a source, sends the source what you search for and nothing from your profile. **Fetch** asks a job site for a posting's page, from your server. Email discovery sends the company and role to SearXNG's enabled engines and fetches result pages from your server.
+- **When you ask for it:** manual Find jobs, off until you choose a source, sends that source what you search for and nothing from your profile. Enabled automatic profiles query JSearch plus the public Remote OK, Remotive, We Work Remotely, Himalayas, Jobicy and Arbeitnow APIs; they receive the profile's keywords and country, never profile data, and the feeds are filtered locally. **Fetch** asks a job site for a posting's page, from your server. Email discovery sends the company and role to SearXNG's enabled engines and fetches result pages from your server.
 - **Cold outreach:** off until you acknowledge the compliance notice and enable it. Campaign keywords, with the countries and cities in the campaign's regions, are sent to the search engines enabled in your private SearXNG. Your server then reads up to six robots.txt-compliant pages on each candidate company's public site. The configured AI model receives those public excerpts and a profile without contact details to score fit, rank only email addresses found verbatim, draft one email and tailor a CV. Nothing is sent until you approve a lead. Gmail receives the approved recipient, message and CV through the `gmail.send` scope; Dossier does not read replies, track opens or send follow-ups. Public availability of an address is not, by itself, permission to contact it in every country; consider GDPR legitimate interest and applicable local ePrivacy rules.
 - **No other tracking or analytics:** Dossier loads nothing from other sites (its Content-Security-Policy forbids it, and the ping comes from your server, not your browser), and Next.js telemetry is off in the image.
 
@@ -342,6 +367,9 @@ Everything you enter is kept in your PostgreSQL database and data directory. [PR
 - **Single user:** one password and one profile; there are no accounts.
 - **English interface:** documents can be written in other languages, but the app itself is in English.
 - **One instance:** run a single copy of the app per database. The nightly backups, the AI job queue and the PDF browser live inside the app's process.
+- **Small local models are slow and less careful:** with a 3B model such as `qwen2.5:3b`, each automated posting takes about half a minute and a Quick apply one to two minutes, and a large daily run can keep the AI busy for an hour or more. They also make more mistakes (a posting's language, for one, is now cross-checked by code); a 7B+ or hosted model writes better documents.
+- **Script-built job pages:** postings that a site loads in the browser can't be fetched from a link; paste their text instead.
+- **Restarts:** restarting the app marks queued and running AI work as failed; retry it from Review or the page it came from.
 
 ## Performance and sizing
 
@@ -354,6 +382,18 @@ Measured on 28 September 2026 with the production build in a container limited t
 ## Security
 
 What protects your data, how to run Dossier safely and how to report a problem: see [SECURITY.md](SECURITY.md).
+
+## What this fork adds
+
+Compared with [Dossier 1.5.0](https://github.com/AienTech/dossier), this fork adds:
+
+- **Automation:** daily search profiles across seven sources (Himalayas, Jobicy and Arbeitnow added to JSearch, Remote OK, Remotive and We Work Remotely), with per-source stats, failure isolation, cross-profile de-duplication, a fair 30-candidate quota and quoted `OR` keyword queries, plus a script that sets up 35 city profiles.
+- **Review:** an approval queue for AI-prepared applications, with a live progress bar, rich filters, bulk dismiss, "I applied manually" and public application-email discovery through a private SearXNG.
+- **Gmail:** sending an application with its CV and cover letter through the `gmail.send` scope, one confirmed email at a time.
+- **Quick apply:** CV advice, a cover letter, a tailored CV and a ready email for any posting you paste or link.
+- **Refine with AI answers questions:** the chat sees the whole posting and answers application-form questions in your voice, with placeholders for what your profile doesn't say.
+- **Better drafts from small models:** application emails are written from the candidate to the company, the posting's language is checked by code, and fetched pages that aren't a posting are refused.
+- **Cold outreach (opt-in):** company discovery and drafted emails for unsolicited applications, each approved by you.
 
 ## Development
 

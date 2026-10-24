@@ -2,10 +2,11 @@ import { z } from "zod";
 
 import { extractedSchema, requirementSchema, type Extracted } from "@/lib/application-data";
 import { isEmailAddress } from "@/lib/application-email";
+import { checkedLanguage } from "@/lib/posting-language";
 
 import { postingForPrompt, system, UNTRUSTED_POSTING, type Task } from "./prompt-parts";
 
-export const EXTRACT_POSTING_VERSION = "extract-posting@2";
+export const EXTRACT_POSTING_VERSION = "extract-posting@4";
 
 // What the model returns. The deadline is free text here and checked in
 // code, since models like to answer "15 Oct" rather than an ISO date.
@@ -30,14 +31,14 @@ const INSTRUCTIONS = `You read job postings and pull out their details as JSON.
 - location: the city or region only, e.g. "Amsterdam".
 - title: "{role} · {company}", or null when either is missing.
 - deadline: the application deadline as YYYY-MM-DD. When the posting gives no year, it's the first such date after today.
-- requirements: one entry per thing the posting asks of the candidate, in its order, each shortened to the essentials (e.g. "5+ years of product design, ideally on complex B2B tools"). kind is:
+- requirements: one entry per thing the posting asks of the candidate, in its order, at most 20 (the most important ones when there are more), each shortened to the essentials (e.g. "5+ years of product design, ideally on complex B2B tools"). kind is:
   - "years" for an amount of experience, with years set to the number (5 for "5+ years");
   - "language" for a spoken language, with language set to its English name ("Dutch");
   - "skill" for a skill, tool or method, with skill set to a short name ("Figma", "Design systems", "User research");
   - "other" for anything else, such as domain experience.
   required is true only when the posting clearly makes the requirement mandatory (for example "must", "required" or "minimum"), not when it says preferred, ideal or a plus. Leave the fields that don't apply null.
 - asksForReferences: true only if the posting explicitly asks applicants to provide references; otherwise false.
-- language: the language the posting is written in, as its English name.
+- language: the language the posting's text is written in, as its English name. That is the language of its sentences, not of the company's country: an English posting from a Danish company is "English".
 - contactName and contactEmail: the person and email address the posting explicitly says to send the application to. Use null when applications go through a form, the address has another purpose, or either value is absent. Never infer or invent an address.`;
 
 /** NEW-3: title, company, role, location, work mode, salary, deadline, typed requirements and language. */
@@ -64,6 +65,8 @@ export const extractPosting: Task<{ posting: string; today?: Date }, Extracted> 
       company,
       title: answer.title?.trim() || (role && company ? `${role} · ${company}` : null),
       deadline: isoDate(answer.deadline),
+      // The posting's own language, not the company's country's.
+      language: checkedLanguage(answer.language?.trim() || null, posting),
       requirements: answer.requirements.filter((requirement) => requirement.text.trim()),
       contactName: contactEmail ? answer.contactName?.trim() || null : null,
       contactEmail,

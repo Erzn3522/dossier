@@ -393,7 +393,11 @@ function PostingDetail({
         )}
       </div>
       {/* As the source's terms ask (E14-2, E14-3). */}
-      {SOURCE_INFO[posting.source].attribution && <p className="text-xs text-muted">{SOURCE_INFO[posting.source].attribution}</p>}
+      {SOURCE_INFO[posting.source].attribution && <p className="text-xs text-muted">
+        {SOURCE_INFO[posting.source].attributionUrl
+          ? <a href={SOURCE_INFO[posting.source].attributionUrl!} target="_blank" rel="noreferrer" className="underline">{SOURCE_INFO[posting.source].attribution}</a>
+          : SOURCE_INFO[posting.source].attribution}
+      </p>}
     </section>
   );
 }

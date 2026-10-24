@@ -29,7 +29,9 @@ describe("NavLinks", () => {
       "Profile",
       "Base resume",
       "Find jobs",
+      "Quick apply",
       "Review",
+      "Outreach",
       "Applications",
       "Settings",
     ]);
@@ -41,6 +43,7 @@ describe("NavLinks", () => {
     expect(currentItem("/resume")).toEqual(["Base resume"]);
     expect(currentItem("/jobs")).toEqual(["Find jobs"]);
     expect(currentItem("/review")).toEqual(["Review"]);
+    expect(currentItem("/apply/app-1")).toEqual(["Quick apply"]);
     expect(currentItem("/settings")).toEqual(["Settings"]);
   });
 

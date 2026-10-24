@@ -4,7 +4,7 @@ import { z } from "zod";
 
 import type { JobSourceAdapter, JSearchHost, RequestContext, SourceCredentials } from "./adapter";
 import { countryName } from "./countries";
-import { jobSearchError } from "./errors";
+import { JobSearchError, jobSearchError } from "./errors";
 import { requestJson } from "./http";
 import { safeLink, type FoundPosting, type PostedWithin, type SearchPage, type SearchQuery } from "./search";
 
@@ -154,7 +154,14 @@ async function searchPage(
   context: RequestContext = {},
 ): Promise<SearchPage> {
   const url = searchUrl(query, host, next, context.baseUrl);
-  const answer = responseSchema.safeParse(await requestJson("JSEARCH", url, { headers: HOSTS[host].headers(key), signal: context.signal }));
+  let payload: unknown;
+  try {
+    payload = await requestJson("JSEARCH", url, { headers: HOSTS[host].headers(key), signal: context.signal, timeoutMs: 20_000 });
+  } catch (error) {
+    if (!(error instanceof JobSearchError) || error.problem !== "unavailable") throw error;
+    payload = await requestJson("JSEARCH", url, { headers: HOSTS[host].headers(key), signal: context.signal, timeoutMs: 20_000 });
+  }
+  const answer = responseSchema.safeParse(payload);
   if (!answer.success) throw jobSearchError("changed", "JSEARCH", { detail: `${url.pathname}: unexpected answer` });
 
   const { data } = answer.data;

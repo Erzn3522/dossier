@@ -20,6 +20,7 @@ const NAV: NavItem[] = [
   { href: "/profile", label: "Profile" },
   { href: "/resume", label: "Base resume" },
   { href: "/jobs", label: "Find jobs" },
+  { href: "/apply", label: "Quick apply" },
   { href: "/review", label: "Review" },
   { href: "/outreach", label: "Outreach" },
   {

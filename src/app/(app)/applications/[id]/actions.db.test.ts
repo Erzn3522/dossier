@@ -235,13 +235,16 @@ describe("sendMessage (E8-5)", () => {
     });
   });
 
-  it("answers on the Job posting tab at once, in order", async () => {
+  it("asks the AI from the Job posting tab too, for questions about the application", async () => {
+    const result = await sendMessage({ id: "app-1", text: "Why do you want to work here?", viewing: null, target: null });
+    expect(result).toMatchObject({ ok: true, data: { jobId: expect.any(String) } });
+    expect((await messages()).map(({ role, text }) => [role, text])).toEqual([["USER", "Why do you want to work here?"]]);
+  });
+
+  it("needs an AI provider for a question too", async () => {
     ai.ready = false;
-    expect(await sendMessage({ id: "app-1", text: "Change the salary", viewing: null, target: null })).toEqual({ ok: true, data: { jobId: null } });
-    expect((await messages()).map(({ role, text }) => [role, text])).toEqual([
-      ["USER", "Change the salary"],
-      ["AI", "I can change the resume, the cover letter or the email. Switch to one of them, or hover a section and pick “Ask AI”."],
-    ]);
+    expect(await sendMessage({ id: "app-1", text: "Why here?", viewing: null, target: null })).toMatchObject({ ok: false });
+    expect(await messages()).toEqual([]);
   });
 
   it("waits for the reply that's on its way", async () => {

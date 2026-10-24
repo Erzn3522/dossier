@@ -40,7 +40,7 @@ describe("readPostingJob (E7-2)", () => {
     expect(steps).toEqual([...READ_POSTING_STEPS]);
     expect(result).toMatchObject({
       extracted: { company: "Ledgerly", title: "Senior Product Designer · Ledgerly" },
-      extractedWith: "extract-posting@2",
+      extractedWith: "extract-posting@4",
       match: { items: [{ requirement: "Strong prototyping skills in Figma", result: "covered", experienceIds: ["e2"] }] },
       matchedWith: "match-requirements@1",
     });

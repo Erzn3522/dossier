@@ -40,6 +40,8 @@ export function JobSearchSection({ initial }: { initial: JobSearchSettingsView }
   const [appId, setAppId] = useState(initial.adzuna.appId);
   const [connection, setConnection] = useState<Connection>({ status: "untested" });
   const source = view.source;
+  const publicFeed = source === "REMOTE_OK" || source === "REMOTIVE" || source === "WE_WORK_REMOTELY" || source === "JOBICY" || source === "ARBEITNOW";
+  const keylessApi = publicFeed || source === "HIMALAYAS";
 
   // Any change means the last test no longer counts.
   const changed = () => setConnection({ status: "untested" });
@@ -121,7 +123,9 @@ export function JobSearchSection({ initial }: { initial: JobSearchSettingsView }
       {source !== "OFF" && (
         <>
           <p role="note" className="rounded-card bg-warning-surface px-4 py-3 text-meta text-warning">
-            Your searches (keywords, place and filters) go to {SOURCE_INFO[source].name}. Nothing from your profile does.
+            {publicFeed
+              ? `Dossier downloads ${SOURCE_INFO[source].name}'s common public feed and filters it locally. Your search and profile aren't sent.`
+              : `Your searches (keywords, place and filters) go to ${SOURCE_INFO[source].name}. Nothing from your profile does.`}
           </p>
 
           <Card className="flex flex-col gap-5">
@@ -162,6 +166,14 @@ export function JobSearchSection({ initial }: { initial: JobSearchSettingsView }
                 No key needed. Dossier uses the public access that the Arbeitsagentur&apos;s own job search uses. It isn&apos;t an official
                 API, so it can change without notice.
               </p>
+            )}
+            {publicFeed && (
+              <p className="text-sm text-muted">
+                No key needed. Dossier reads the source&apos;s public feed, applies your country, date and keyword filters locally, and links every result back to the source.
+              </p>
+            )}
+            {keylessApi && !publicFeed && (
+              <p className="text-sm text-muted">No key needed. Dossier sends the keywords and country to this public API and preserves its application and source links.</p>
             )}
 
             <div className="flex flex-wrap items-center gap-3.5 pt-1">

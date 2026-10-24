@@ -5,7 +5,10 @@ import type { Match, Requirement } from "@/lib/application-data";
 // application's match, with the prototype's chips where the match has
 // nothing to offer (decided 28 September 2026: no extra AI call).
 
-export type RefineSuggestions = { resume: string[]; letter: string[]; email: string[] };
+export type RefineSuggestions = { resume: string[]; letter: string[]; email: string[]; posting: string[] };
+
+/** Answers what the posting asks applicants, in the chat, without changing a document. */
+export const ANSWER_QUESTIONS = "Answer the application questions";
 
 /** Longer requirements make clumsy chips; they're left out. */
 const MAX_NAME = 28;
@@ -56,11 +59,13 @@ export function refineSuggestions({
       tone === Tone.FORMAL ? "Make it warmer" : "Make it more formal",
       "Shorter, under 200 words",
       ...(gap ? [`Handle the ${gap} gap differently`] : []),
+      ANSWER_QUESTIONS,
     ],
     email: [
       "Shorter, under 100 words",
       tone === Tone.FORMAL ? "Make it warmer" : "Make it more formal",
       strongest ? `Lead with ${strongest}` : "Make the subject line stand out",
     ],
+    posting: [ANSWER_QUESTIONS, "What will they ask in the interview?", "What matters most for this role?"],
   };
 }

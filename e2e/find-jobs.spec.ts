@@ -94,10 +94,10 @@ test("saves an automatic search, runs it and reviews its prepared drafts", async
   await page.goto("/jobs?q=product%20designer&where=Rotterdam&country=nl");
   await page.getByRole("button", { name: "Save current search" }).click();
   await page.getByLabel("Profile name").fill("Daily design roles");
-  await page.getByLabel("Pages per run").selectOption("2");
+  await page.getByLabel("Jobs per run").selectOption("2");
   await page.getByRole("button", { name: "Add", exact: true }).click();
   await expect(page.getByText("Daily design roles")).toBeVisible();
-  await expect(page.getByLabel("Pages per run for Daily design roles")).toHaveValue("2");
+  await expect(page.getByLabel("Jobs per run for Daily design roles")).toHaveValue("2");
 
   await page.getByRole("button", { name: "Run now" }).click();
   await expect(page.getByText(/postings queued for review/)).toBeVisible();

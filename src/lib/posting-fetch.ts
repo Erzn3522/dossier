@@ -26,7 +26,25 @@ export const FETCH_MESSAGES = {
   notPage: "That link isn't a web page. Paste the posting instead.",
   unreadable:
     "There's no posting text on that page that Dossier can read: the site probably builds it in the browser. Paste the posting instead.",
+  notPosting:
+    "That page's text doesn't look like a job posting (only menus, cookie notices or a form came back): the site probably loads the posting in the browser. Open the link, copy the posting and paste it instead.",
 };
+
+// Words nearly every posting uses, in the languages Dossier's users apply in.
+// A page's main text without at least a few of them is a cookie wall, a
+// footer or a sign-up form, not the posting the site builds in the browser.
+const POSTING_WORDS = [
+  "responsibilit", "requirement", "qualification", "experience", "skills", "you will", "we offer", "what you",
+  "about the role", "about you", "apply", "candidate", "position", "job description", "full-time", "full time",
+  "salary", "benefits", "erfahrung", "aufgaben", "anforderungen", "erfaring", "kvalifikation", "opgaver", "ervaring",
+  "functie", "erfarenhet", "expérience", "experiencia", "deneyim", "izkušnj", "zahtev",
+];
+
+/** Whether a page's text reads like a job posting rather than the page around one. */
+export function looksLikePosting(text: string): boolean {
+  const lower = text.toLocaleLowerCase();
+  return POSTING_WORDS.filter((word) => lower.includes(word)).length >= 3;
+}
 
 const TIMEOUT_MS = 10_000;
 const MAX_BYTES = 2 * 1024 * 1024;
@@ -161,6 +179,7 @@ export async function fetchPosting(
   if (!page.ok) return page;
   const posting = postingFromHtml(page.html);
   if (!posting) return { ok: false, error: FETCH_MESSAGES.unreadable };
+  if (posting.source === "page" && !looksLikePosting(posting.text)) return { ok: false, error: FETCH_MESSAGES.notPosting };
   return { ok: true, ...posting, url: page.url };
 }
 

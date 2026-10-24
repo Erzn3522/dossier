@@ -12,7 +12,14 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import type { ActionResult } from "@/lib/action";
 import type { DiscoveredEmail } from "@/lib/email-discovery-data";
-import { reviewHref, type ReviewCandidateDetails, type ReviewListParams, type ReviewQueueItem } from "@/lib/review-list";
+import {
+  DEFAULT_REVIEW_PARAMS,
+  reviewHref,
+  type ReviewCandidateDetails,
+  type ReviewFilterOptions,
+  type ReviewListParams,
+  type ReviewQueueItem,
+} from "@/lib/review-list";
 
 import {
   approveAndSend,
@@ -39,11 +46,20 @@ type Props = {
   pageSize: number;
   gmail: { configured: boolean; email: string | null };
   emailSearchConfigured?: boolean;
+  options?: ReviewFilterOptions;
+};
+
+const NO_OPTIONS: ReviewFilterOptions = { sources: [], searches: [], statusCounts: { ready: 0, filtered: 0, queued: 0, failed: 0 } };
+const percentValue = (input: string): number | null | undefined => {
+  const value = input.trim();
+  if (value === "") return null;
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= 1 && parsed <= 100 ? parsed : undefined;
 };
 
 type Sending = { item: ReviewQueueItem; email: NonNullable<ReviewCandidateDetails["email"]> };
 
-export function ReviewQueue({ items, params, total, filtered, page, pages, pageSize, gmail, emailSearchConfigured = false }: Props) {
+export function ReviewQueue({ items, params, total, filtered, page, pages, pageSize, gmail, emailSearchConfigured = false, options = NO_OPTIONS }: Props) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [shownItems, hideOptimistically] = useOptimistic(items, (current, ids: string[]) => current.filter((item) => !ids.includes(item.id)));
@@ -53,24 +69,35 @@ export function ReviewQueue({ items, params, total, filtered, page, pages, pageS
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [matchInput, setMatchInput] = useState(params.matchBelow?.toString() ?? "");
+  const [minInput, setMinInput] = useState(params.matchAtLeast?.toString() ?? "");
+  const [textInput, setTextInput] = useState(params.q);
   const [details, setDetails] = useState<Record<string, ReviewCandidateDetails>>({});
   const [detailErrors, setDetailErrors] = useState<Record<string, string>>({});
   const [loadingDetails, setLoadingDetails] = useState<Set<string>>(() => new Set());
   const detailCache = useRef<Record<string, ReviewCandidateDetails>>({});
   const detailRequests = useRef<Partial<Record<string, Promise<ReviewCandidateDetails | null>>>>({});
 
-  useEffect(() => setMatchInput(params.matchBelow?.toString() ?? ""), [params.matchBelow]);
-  useEffect(() => setSelected(new Set()), [params.page, params.matchBelow, params.email, params.sort]);
+  // When the URL changes (not on the periodic server refresh), drop the selection and re-sync the inputs.
+  const paramsKey = reviewHref(params);
+  const [syncedKey, setSyncedKey] = useState(paramsKey);
+  if (syncedKey !== paramsKey) {
+    setSyncedKey(paramsKey);
+    setSelected(new Set());
+    setMatchInput(params.matchBelow?.toString() ?? "");
+    setMinInput(params.matchAtLeast?.toString() ?? "");
+    setTextInput(params.q);
+  }
   useEffect(() => {
-    const value = matchInput.trim();
-    const parsed = value === "" ? null : Number(value);
-    if (parsed !== null && (!Number.isInteger(parsed) || parsed < 1 || parsed > 100)) return;
-    if (parsed === params.matchBelow) return;
+    const matchBelow = percentValue(matchInput);
+    const matchAtLeast = percentValue(minInput);
+    const q = textInput.trim();
+    if (matchBelow === undefined || matchAtLeast === undefined) return;
+    if (matchBelow === params.matchBelow && matchAtLeast === params.matchAtLeast && q === params.q) return;
     const timer = setTimeout(() => {
-      start(() => router.replace(reviewHref({ ...params, page: 1, matchBelow: parsed }), { scroll: false }));
+      start(() => router.replace(reviewHref({ ...params, page: 1, matchBelow, matchAtLeast, q }), { scroll: false }));
     }, 300);
     return () => clearTimeout(timer);
-  }, [matchInput, params, router]);
+  }, [matchInput, minInput, textInput, params, router]);
 
   const run = <T,>(work: () => Promise<ActionResult<T>>, onSuccess?: (data: T) => void) =>
     start(async () => {
@@ -160,6 +187,7 @@ export function ReviewQueue({ items, params, total, filtered, page, pages, pageS
     }
     return next;
   });
+  const filtersActive = reviewHref({ ...params, page: 1, sort: "queue" }) !== "/review";
   const optimisticRemoved = items.length - shownItems.length;
   const shownTotal = Math.max(0, total - optimisticRemoved);
   const shownFiltered = Math.max(0, filtered - optimisticRemoved);
@@ -180,29 +208,48 @@ export function ReviewQueue({ items, params, total, filtered, page, pages, pageS
               {shownFiltered === shownTotal ? `Page ${page} of ${pages}` : `${shownFiltered} matching reviews · Page ${page} of ${pages}`}
             </p>
           </div>
-          <div className="flex flex-wrap items-end gap-3">
-            <Input
-              className="w-40"
-              label="Match below (%)"
-              type="number"
-              min="1"
-              max="100"
-              inputMode="numeric"
-              placeholder="All"
-              value={matchInput}
-              onChange={(event) => setMatchInput(event.target.value)}
-            />
-            <Select className="w-48" label="Email status" value={params.email} onChange={(event) => navigate({ email: event.target.value as ReviewListParams["email"] })}>
-              <option value="all">All email states</option>
-              <option value="not-found">No email found</option>
-              <option value="found">Email found</option>
+        </div>
+        <div className="mt-4 flex flex-wrap items-end gap-3">
+          <Input className="w-56" label="Search" type="search" placeholder="Company, role or place" value={textInput} onChange={(event) => setTextInput(event.target.value)} />
+          <Select className="w-44" label="Status" value={params.status} onChange={(event) => navigate({ status: event.target.value as ReviewListParams["status"] })}>
+            <option value="all">All statuses</option>
+            <option value="ready">Ready to review ({options.statusCounts.ready})</option>
+            <option value="filtered">Filtered out ({options.statusCounts.filtered})</option>
+            <option value="queued">Waiting for AI ({options.statusCounts.queued})</option>
+            <option value="failed">Failed ({options.statusCounts.failed})</option>
+          </Select>
+          <Input className="w-32" label="Match from (%)" type="number" min="1" max="100" inputMode="numeric" placeholder="Any" value={minInput} onChange={(event) => setMinInput(event.target.value)} />
+          <Input className="w-32" label="Match below (%)" type="number" min="1" max="100" inputMode="numeric" placeholder="Any" value={matchInput} onChange={(event) => setMatchInput(event.target.value)} />
+          <Select className="w-44" label="Email status" value={params.email} onChange={(event) => navigate({ email: event.target.value as ReviewListParams["email"] })}>
+            <option value="all">All email states</option>
+            <option value="not-found">No email found</option>
+            <option value="found">Email found</option>
+          </Select>
+          <Select className="w-36" label="Work mode" value={params.remote} onChange={(event) => navigate({ remote: event.target.value as ReviewListParams["remote"] })}>
+            <option value="all">Any</option>
+            <option value="remote">Remote</option>
+            <option value="onsite">Not remote</option>
+          </Select>
+          {options.sources.length > 1 && (
+            <Select className="w-44" label="Job source" value={params.source} onChange={(event) => navigate({ source: event.target.value })}>
+              <option value="">All sources</option>
+              {options.sources.map((source) => <option key={source.value} value={source.value}>{source.label}</option>)}
             </Select>
-            <Select className="w-48" label="Sort by" value={params.sort} onChange={(event) => navigate({ sort: event.target.value as ReviewListParams["sort"] })}>
-              <option value="queue">Queue order</option>
-              <option value="lowest">Lowest match first</option>
-              <option value="highest">Highest match first</option>
+          )}
+          {options.searches.length > 1 && (
+            <Select className="w-56" label="Search profile" value={params.searchId} onChange={(event) => navigate({ searchId: event.target.value })}>
+              <option value="">All profiles</option>
+              {options.searches.map((search) => <option key={search.value} value={search.value}>{search.label}</option>)}
             </Select>
-          </div>
+          )}
+          <Select className="w-48" label="Sort by" value={params.sort} onChange={(event) => navigate({ sort: event.target.value as ReviewListParams["sort"] })}>
+            <option value="queue">Newest first</option>
+            <option value="oldest">Oldest first</option>
+            <option value="highest">Highest match first</option>
+            <option value="lowest">Lowest match first</option>
+            <option value="company">Company A–Z</option>
+          </Select>
+          {filtersActive && <Button variant="text" size="sm" onClick={() => { setTextInput(""); setMatchInput(""); setMinInput(""); navigate({ ...DEFAULT_REVIEW_PARAMS, sort: params.sort }); }}>Clear filters</Button>}
         </div>
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
           <Checkbox

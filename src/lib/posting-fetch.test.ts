@@ -5,7 +5,7 @@ import { gzipSync } from "node:zlib";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { FETCH_MESSAGES, fetchPosting, fetchPublicPage, guardedLookup, isPublicAddress, postingFromHtml } from "./posting-fetch";
+import { FETCH_MESSAGES, fetchPosting, fetchPublicPage, guardedLookup, isPublicAddress, looksLikePosting, postingFromHtml } from "./posting-fetch";
 
 const DESCRIPTION = "We're looking for a senior product designer to own our payout flows end to end. ".repeat(4);
 
@@ -129,5 +129,14 @@ describe("fetchPosting (E7-8)", () => {
   it("refuses a name that resolves to a private address, when connecting", async () => {
     const error = await new Promise((resolve) => guardedLookup("localhost", {}, (failure) => resolve(failure)));
     expect(error).toMatchObject({ code: "EPRIVATE" });
+  });
+});
+
+describe("looksLikePosting", () => {
+  it("tells a posting from the cookie notices and forms around a script-built one", () => {
+    const footer = "Skip to content Back to all © e-Recruitment by HR-ON Your Email Address Leave this field empty Thank you for voting! Ready to launch a free project? Create a BIM Viewer project Our local team is here to help. Get in contact";
+    expect(looksLikePosting(footer)).toBe(false);
+    expect(looksLikePosting("About the role: you will build perception systems. Requirements: 3+ years of experience with C++. We offer a great team.")).toBe(true);
+    expect(looksLikePosting("Dine opgaver: udvikle software. Kvalifikationer: erfaring med C++ og Python.")).toBe(true);
   });
 });

@@ -66,7 +66,7 @@ describe("writeEmailJob", () => {
       { id: "subject", text: "Application: Senior Product Designer" },
       { id: "body", text: expect.stringMatching(/^Dear John,\n\nI'm applying/) },
     ]);
-    expect(document.writtenWith).toBe("write-email@2");
+    expect(document.writtenWith).toBe("write-email@3");
     expect(document.versions.map((version) => version.cause)).toEqual(["WRITTEN"]);
     const prompt = JSON.stringify(mock.calls[0]);
     expect(prompt).toMatch(/Dutch/);

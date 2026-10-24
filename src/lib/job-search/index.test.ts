@@ -36,10 +36,12 @@ describe("searchPostings", () => {
   it("doesn't keep failures", async () => {
     let status = 503;
     const requests = stubFetch(() => json(jsearchV2LastPage, { status }));
+    // JSearch retries a 5xx once before giving up.
     await expect(searchPostings("JSEARCH", ninja, query)).rejects.toMatchObject({ problem: "unavailable" });
+    expect(requests).toHaveLength(2);
     status = 200;
     await expect(searchPostings("JSEARCH", ninja, query)).resolves.toMatchObject({ next: null });
-    expect(requests).toHaveLength(2);
+    expect(requests).toHaveLength(3);
   });
 
   it("logs problems with the source without the search, but not a wrong key", async () => {

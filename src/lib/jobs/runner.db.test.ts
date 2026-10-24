@@ -129,6 +129,19 @@ describe("the job runner", () => {
     await eventually(async () => (await status(b)).toBe("DONE"));
   });
 
+  it("puts a job someone waits for ahead of queued background work", async () => {
+    const running = await startJob(gated, { name: "Running", fail: "no" });
+    const background = await startJob(gated, { name: "Background", fail: "no" });
+    const waited = await startJob(gated, { name: "Waited", fail: "no" }, { first: true });
+    await eventually(async () => (await status(running)).toBe("RUNNING"));
+    await release("Running");
+    await eventually(async () => (await status(waited)).toBe("RUNNING"));
+    (await status(background)).toBe("QUEUED");
+    await release("Waited");
+    await release("Background");
+    await eventually(async () => (await status(background)).toBe("DONE"));
+  });
+
   it("cancels an application's unfinished jobs, and only those", async () => {
     await prisma().application.createMany({ data: [{ id: "app-1" }, { id: "app-2" }] });
     const running = await startJob(gated, { name: "Mine", fail: "no" }, { applicationId: "app-1" });

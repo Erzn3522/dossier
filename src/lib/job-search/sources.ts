@@ -31,6 +31,7 @@ export type SourceInfo = {
   quotaPeriod: string | null;
   /** Shown with its results, as the source's terms ask. */
   attribution: string | null;
+  attributionUrl: string | null;
   /** The countries it lists jobs in (ISO codes); null for every country. */
   countries: readonly string[] | null;
 };
@@ -43,6 +44,7 @@ export const SOURCE_INFO: Record<JobSource, SourceInfo> = {
     keyUrl: "https://www.openwebninja.com/api/jsearch",
     quotaPeriod: "this month",
     attribution: null,
+    attributionUrl: null,
     countries: null,
   },
   ADZUNA: {
@@ -52,6 +54,7 @@ export const SOURCE_INFO: Record<JobSource, SourceInfo> = {
     keyUrl: "https://developer.adzuna.com/signup",
     quotaPeriod: "today",
     attribution: "Jobs by Adzuna",
+    attributionUrl: "https://www.adzuna.com/",
     countries: ["at", "au", "be", "br", "ca", "ch", "de", "es", "fr", "gb", "in", "it", "mx", "nl", "nz", "pl", "sg", "us", "za"],
   },
   ARBEITSAGENTUR: {
@@ -61,7 +64,68 @@ export const SOURCE_INFO: Record<JobSource, SourceInfo> = {
     keyUrl: null,
     quotaPeriod: null,
     attribution: "Source: Bundesagentur für Arbeit",
+    attributionUrl: "https://www.arbeitsagentur.de/jobsuche/",
     countries: ["de"],
+  },
+  REMOTE_OK: {
+    name: "Remote OK",
+    description: "Remote jobs from Remote OK's public JSON feed, filtered locally by Dossier.",
+    tag: "Worldwide remote · free, no key",
+    keyUrl: null,
+    quotaPeriod: null,
+    attribution: "Jobs by Remote OK",
+    attributionUrl: "https://remoteok.com/",
+    countries: null,
+  },
+  REMOTIVE: {
+    name: "Remotive",
+    description: "Curated remote jobs from Remotive's public API, delayed by about 24 hours.",
+    tag: "Worldwide remote · free, no key",
+    keyUrl: null,
+    quotaPeriod: null,
+    attribution: "Jobs by Remotive",
+    attributionUrl: "https://remotive.com/",
+    countries: null,
+  },
+  WE_WORK_REMOTELY: {
+    name: "We Work Remotely",
+    description: "Remote jobs from We Work Remotely's public RSS feed.",
+    tag: "Worldwide remote · free, no key",
+    keyUrl: null,
+    quotaPeriod: null,
+    attribution: "Jobs by We Work Remotely",
+    attributionUrl: "https://weworkremotely.com/",
+    countries: null,
+  },
+  HIMALAYAS: {
+    name: "Himalayas",
+    description: "Remote jobs from Himalayas' public jobs API, filtered locally by Dossier.",
+    tag: "Worldwide remote · free, no key",
+    keyUrl: null,
+    quotaPeriod: null,
+    attribution: "Jobs by Himalayas",
+    attributionUrl: "https://himalayas.app/jobs",
+    countries: null,
+  },
+  JOBICY: {
+    name: "Jobicy",
+    description: "Remote jobs from Jobicy's public API, synchronized at most hourly.",
+    tag: "Worldwide remote · free, no key",
+    keyUrl: null,
+    quotaPeriod: null,
+    attribution: "Jobs by Jobicy",
+    attributionUrl: "https://jobicy.com/",
+    countries: null,
+  },
+  ARBEITNOW: {
+    name: "Arbeitnow",
+    description: "European jobs from Arbeitnow's public job board API.",
+    tag: "Europe · free, no key",
+    keyUrl: null,
+    quotaPeriod: null,
+    attribution: "Jobs by Arbeitnow",
+    attributionUrl: "https://www.arbeitnow.com/",
+    countries: ["al", "ad", "am", "at", "az", "by", "be", "ba", "bg", "hr", "cy", "cz", "dk", "ee", "fi", "fr", "ge", "de", "gr", "hu", "is", "ie", "it", "xk", "lv", "li", "lt", "lu", "mt", "md", "mc", "me", "nl", "mk", "no", "pl", "pt", "ro", "sm", "rs", "sk", "si", "es", "se", "ch", "tr", "ua", "gb"],
   },
 };
 

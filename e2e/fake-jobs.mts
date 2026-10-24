@@ -36,6 +36,11 @@ function send(response: ServerResponse, status: number, body: unknown) {
   response.end(JSON.stringify(body));
 }
 
+function sendText(response: ServerResponse, status: number, body: string, contentType: string) {
+  response.writeHead(status, { "content-type": contentType });
+  response.end(body);
+}
+
 /** How many JSearch searches were asked for, so a spec can tell a kept search came from the database. */
 let searches = 0;
 
@@ -63,6 +68,13 @@ createServer((request, response) => {
   if (url.pathname === "/arbeitsagentur/pc/v6/jobs") {
     return send(response, 200, { ergebnisliste: [{ referenznummer: "e2e-ba", stellenangebotsTitel: "Produktdesigner (m/w/d)", firma: "Hafenlogik GmbH" }], maxErgebnisse: 1 });
   }
+
+  if (url.pathname === "/remote_ok") return send(response, 200, []);
+  if (url.pathname === "/remotive") return send(response, 200, { jobs: [] });
+  if (url.pathname === "/we_work_remotely") return sendText(response, 200, "<rss><channel></channel></rss>", "application/rss+xml");
+  if (url.pathname === "/himalayas") return send(response, 200, { jobs: [] });
+  if (url.pathname === "/jobicy") return send(response, 200, { success: true, jobs: [], nextCursor: null, hasMore: false });
+  if (url.pathname === "/arbeitnow") return send(response, 200, { data: [], links: { next: null } });
 
   send(response, 404, { error: "not found" });
 }).listen(port, "127.0.0.1", () => console.log(`Fake job sources on http://localhost:${port}`));

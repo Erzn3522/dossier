@@ -13,7 +13,8 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
-    "hash-password": "tsx scripts/hash-password.ts"
+    "hash-password": "tsx scripts/hash-password.ts",
+    "configure-job-automation": "tsx scripts/configure-job-automation.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.128.0",

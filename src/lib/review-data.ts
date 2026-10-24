@@ -1,12 +1,24 @@
 import "server-only";
 
 import { Prisma } from "@/generated/prisma/client";
+import { PostingSource } from "@/generated/prisma/enums";
+import { isAutomationSearching, parseSourceStats } from "@/lib/automation/searches";
+import { SOURCE_INFO } from "@/lib/job-search/sources";
 import { emailParts } from "@/lib/application-email";
 import { extractedSchema, unitsSchema } from "@/lib/application-data";
 import { MISSING_APPLICATION_EMAIL } from "@/lib/automation/filter";
 import { emailDiscoverySchema } from "@/lib/email-discovery-data";
 import { prisma } from "@/lib/prisma";
-import { REVIEW_PAGE_SIZE, type ReviewCandidateDetails, type ReviewListParams, type ReviewQueueItem } from "@/lib/review-list";
+import {
+  REVIEW_PAGE_SIZE,
+  type ReviewCandidateDetails,
+  type ReviewFilterOptions,
+  type ReviewListParams,
+  type ReviewProgress,
+  type ReviewQueueItem,
+} from "@/lib/review-list";
+
+const QUEUED = ["DISCOVERED", "ANALYZING", "PREPARING"] as const;
 
 export function reviewBaseWhere(): Prisma.AutomationCandidateWhereInput {
   return {
@@ -20,7 +32,20 @@ export function reviewBaseWhere(): Prisma.AutomationCandidateWhereInput {
 
 function filteredWhere(params: ReviewListParams): Prisma.AutomationCandidateWhereInput {
   const filters: Prisma.AutomationCandidateWhereInput[] = [reviewBaseWhere()];
+  if (params.status === "ready") filters.push({ status: "READY" });
+  else if (params.status === "filtered") filters.push({ status: "FILTERED" });
+  else if (params.status === "failed") filters.push({ status: "FAILED" });
+  else if (params.status === "queued") filters.push({ status: { in: [...QUEUED] } });
   if (params.matchBelow !== null) filters.push({ matchPercent: { lt: params.matchBelow } });
+  if (params.matchAtLeast !== null) filters.push({ matchPercent: { gte: params.matchAtLeast } });
+  if (params.remote === "remote") filters.push({ posting: { remote: true } });
+  if (params.remote === "onsite") filters.push({ posting: { OR: [{ remote: false }, { remote: null }] } });
+  if (params.source && params.source in PostingSource) filters.push({ posting: { source: params.source as PostingSource } });
+  if (params.searchId) filters.push({ run: { searchId: params.searchId } });
+  if (params.q) {
+    const contains = { contains: params.q, mode: "insensitive" as const };
+    filters.push({ posting: { OR: [{ company: contains }, { title: contains }, { place: contains }] } });
+  }
   if (params.email !== "all") {
     filters.push({
       status: "FILTERED",
@@ -32,6 +57,8 @@ function filteredWhere(params: ReviewListParams): Prisma.AutomationCandidateWher
 }
 
 function orderBy(sort: ReviewListParams["sort"]): Prisma.AutomationCandidateOrderByWithRelationInput[] {
+  if (sort === "oldest") return [{ createdAt: "asc" }, { id: "asc" }];
+  if (sort === "company") return [{ posting: { company: "asc" } }, { posting: { title: "asc" } }, { id: "desc" }];
   if (sort === "lowest") return [{ matchPercent: { sort: "asc", nulls: "last" } }, { createdAt: "desc" }, { id: "desc" }];
   if (sort === "highest") return [{ matchPercent: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }, { id: "desc" }];
   return [{ createdAt: "desc" }, { id: "desc" }];
@@ -112,3 +139,51 @@ export async function loadReviewCandidateDetails(candidateId: string): Promise<R
   };
 }
 
+
+export async function loadReviewFilterOptions(): Promise<ReviewFilterOptions> {
+  const [searches, sources, counts] = await Promise.all([
+    prisma.automatedSearch.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    prisma.posting.findMany({ where: { automationCandidate: { isNot: null } }, distinct: ["source"], select: { source: true } }),
+    prisma.automationCandidate.groupBy({ by: ["status"], where: reviewBaseWhere(), _count: { _all: true } }),
+  ]);
+  const count = (...statuses: string[]) => counts.filter((row) => statuses.includes(row.status)).reduce((sum, row) => sum + row._count._all, 0);
+  return {
+    searches: searches.map(({ id, name }) => ({ value: id, label: name })),
+    sources: sources.map(({ source }) => ({ value: source, label: SOURCE_INFO[source].name })).sort((a, b) => a.label.localeCompare(b.label)),
+    statusCounts: { ready: count("READY"), filtered: count("FILTERED"), failed: count("FAILED"), queued: count(...QUEUED) },
+  };
+}
+
+/** Progress of the automation batch in flight, or null when the AI has nothing left to do. */
+export async function loadReviewProgress(): Promise<ReviewProgress | null> {
+  const searching = isAutomationSearching();
+  const running = await prisma.automationRun.findFirst({ where: { status: "RUNNING" }, orderBy: { startedAt: "asc" }, select: { startedAt: true } });
+  if (!running && !searching) return null;
+  const since = running?.startedAt ?? new Date(Date.now() - 12 * 3_600_000);
+  const [runs, profilesTotal, byStatus, durations] = await Promise.all([
+    prisma.automationRun.findMany({ where: { startedAt: { gte: since } }, select: { found: true, sourceStats: true } }),
+    prisma.automatedSearch.count({ where: { enabled: true } }),
+    prisma.automationCandidate.groupBy({ by: ["status"], where: { run: { startedAt: { gte: since } } }, _count: { _all: true } }),
+    prisma.$queryRaw<{ seconds: number | null }[]>`
+      SELECT AVG(EXTRACT(EPOCH FROM ("finishedAt" - "startedAt")))::float AS seconds FROM "Job"
+      WHERE type = 'prepare-automation-candidate' AND status = 'DONE' AND "finishedAt" >= ${since}`,
+  ]);
+  const count = (...statuses: string[]) => byStatus.filter((row) => statuses.includes(row.status)).reduce((sum, row) => sum + row._count._all, 0);
+  const candidates = byStatus.reduce((sum, row) => sum + row._count._all, 0);
+  const pending = count(...QUEUED);
+  if (pending === 0 && !searching) return null;
+  const seconds = durations[0]?.seconds ?? null;
+  return {
+    searching,
+    profilesSearched: runs.length,
+    profilesTotal,
+    scanned: runs.reduce((sum, run) => {
+      const stats = parseSourceStats(run.sourceStats);
+      return sum + (stats.length > 0 ? stats.reduce((total, stat) => total + stat.found, 0) : run.found);
+    }, 0),
+    candidates,
+    analyzed: candidates - pending,
+    analyzing: count("ANALYZING", "PREPARING"),
+    etaMinutes: seconds && pending > 0 ? Math.max(1, Math.round((seconds * pending) / 60)) : null,
+  };
+}

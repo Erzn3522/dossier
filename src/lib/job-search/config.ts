@@ -30,6 +30,12 @@ const FROM_ENV: Record<NonNullable<Env["DOSSIER_JOBS_SOURCE"]>, JobSource | null
   jsearch: "JSEARCH",
   adzuna: "ADZUNA",
   arbeitsagentur: "ARBEITSAGENTUR",
+  "remote-ok": "REMOTE_OK",
+  remotive: "REMOTIVE",
+  "we-work-remotely": "WE_WORK_REMOTELY",
+  himalayas: "HIMALAYAS",
+  jobicy: "JOBICY",
+  arbeitnow: "ARBEITNOW",
   off: null,
 };
 

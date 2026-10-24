@@ -315,7 +315,7 @@ export function ApplicationView({
   const send = (text: string) =>
     new Promise<boolean>((resolve) => {
       const viewing = onScreen();
-      if ((viewing || target) && !aiReady) {
+      if (!aiReady) {
         needsAi();
         return resolve(false);
       }
@@ -680,7 +680,7 @@ export function ApplicationView({
           tab={tab}
           messages={[...messages, ...sending]}
           thinking={reply !== null}
-          suggestions={tab === "resume" ? suggestions.resume : tab === "letter" ? suggestions.letter : tab === "email" && email ? suggestions.email : []}
+          suggestions={tab === "resume" ? suggestions.resume : tab === "letter" ? suggestions.letter : tab === "email" && email ? suggestions.email : tab === "posting" ? suggestions.posting : []}
           target={target}
           onClearTarget={() => setTarget(null)}
           onSend={send}

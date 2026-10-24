@@ -11,3 +11,4 @@ import "./zip-pdfs";
 import "./import-profile";
 import "./prepare-automation-candidate";
 import "./prepare-outreach-lead";
+import "./quick-apply";

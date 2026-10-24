@@ -12,7 +12,7 @@ import { isoDate } from "./extract-posting";
 import { sameSkill } from "./match-requirements";
 import { COVER_LETTER_APPROACH } from "./prompt-parts";
 import { withoutFrame } from "./write-cover-letter";
-import { recipient } from "./write-email";
+import { companyGreeting, recipient } from "./write-email";
 import {
   extractPosting,
   matchRequirements,
@@ -67,7 +67,7 @@ describe("extractPosting", () => {
   it("reads the posting as data and returns typed requirements with an ISO deadline (NEW-3)", async () => {
     const provider = model({ ...extracted, title: null, deadline: "15 October 2026", requirements: [...extracted.requirements, { text: " ", kind: "other", skill: null, years: null, language: null }] });
     const { data, promptVersion } = await extractPosting(provider, { posting: sample.ledgerly.posting, today }, options);
-    expect(promptVersion).toBe("extract-posting@2");
+    expect(promptVersion).toBe("extract-posting@4");
     expect(data).toMatchObject({ title: "Senior Product Designer · Ledgerly", deadline: "2026-10-15", asksForReferences: false, language: "English" });
     expect(data.requirements).toHaveLength(7);
     expect(sent(provider).messages[0].content).toMatch(/^<posting>\nLedgerly: Senior Product Designer/);
@@ -278,7 +278,7 @@ describe("writeEmail", () => {
   it("writes the recipient, subject and message, ending with the sign-off and name", async () => {
     const provider = model(answer);
     const { data, promptVersion } = await writeEmail(provider, input, options);
-    expect(promptVersion).toBe("write-email@2");
+    expect(promptVersion).toBe("write-email@3");
     expect(data).toEqual([
       { id: "to", label: "Recipient", text: "John Doe <john.doe@example.com>" },
       { id: "subject", label: "Subject", text: "Application: Senior Product Designer, Jane Doe" },
@@ -376,7 +376,7 @@ describe("refineChat", () => {
       declined: false,
     };
     const { data, promptVersion } = await refineChat(model(answer), input, options);
-    expect(promptVersion).toBe("refine-chat@4");
+    expect(promptVersion).toBe("refine-chat@5");
     expect(data).toEqual({
       reply: "I made the letter more formal.",
       tone: "FORMAL",
@@ -480,3 +480,45 @@ describe("the fact guard in the writing tasks (E6-6)", () => {
   });
 });
 
+describe("writeEmail from the candidate's side", () => {
+  const first = profile.basics.name.split(" ")[0];
+  const input = { profile, extracted: { ...extracted, company: "Trackman", contactName: null }, match: null, tone: "WARM" as const, note: "", posting, letter: [] };
+
+  it("says who writes to whom, in the instructions", async () => {
+    const provider = model({ contactName: null, contactEmail: null, subject: "Application", greeting: "Dear Trackman team,", paragraphs: ["I'm applying."], signOff: "Best," });
+    await writeEmail(provider, input, options);
+    expect(sent(provider).system).toMatch(/CANDIDATE is the sender and writes in the first person/);
+    expect(sent(provider).system).toMatch(/Never greet or address the candidate/);
+  });
+
+  it("replaces a greeting to the candidate and drops it when repeated", async () => {
+    const { data } = await writeEmail(
+      model({ contactName: null, contactEmail: null, subject: "Application", greeting: `Hej ${first},`, paragraphs: [`Hej ${first},`, "I'm applying for the role."], signOff: "Best," }),
+      input,
+      options,
+    );
+    const body = data.find((unit) => unit.id === "body")!.text;
+    expect(body.startsWith("Dear Trackman team,\n\nI'm applying for the role.")).toBe(true);
+    expect(body.split(first)).toHaveLength(2); // only in the signature
+  });
+
+  it("keeps a greeting to the company, and falls back to the contact or the team", () => {
+    expect(companyGreeting("Dear Ms. Berg,", "Jane Doe", null, "Trackman")).toBe("Dear Ms. Berg,");
+    expect(companyGreeting("Hi Jane,", "Jane Doe", "Anna Berg", "Trackman")).toBe("Dear Anna Berg,");
+    expect(companyGreeting("Hi Jane,", "Jane Doe", null, null)).toBe("Dear hiring team,");
+  });
+});
+
+
+describe("refineChat answering questions", () => {
+  const input = { request: "Why do you want to work here?", history: [], target: null, viewing: null, resume: demoResumeUnits(), letter: [], profile, extracted, tone: "WARM" as const, note: "", posting: "Please answer in your application: why Ledgerly?" };
+
+  it("sends the posting and tells questions from changes", async () => {
+    const provider = model({ reply: "I want to work at Ledgerly because…", edits: [], tone: null, declined: false });
+    const { data } = await refineChat(provider, input, options);
+    expect(data).toEqual({ reply: "I want to work at Ledgerly because…", edits: [], tone: null, declined: false });
+    expect(prompt(provider)).toContain("<posting>\nPlease answer in your application: why Ledgerly?\n</posting>");
+    expect(sent(provider).system).toMatch(/a question never changes a document/);
+    expect(sent(provider).system).toMatch(/\[your notice period\]/);
+  });
+});

@@ -114,7 +114,7 @@ const props: ApplicationViewProps = {
   rewriting: [],
   messages: [],
   refining: null,
-  suggestions: { resume: ["Make the summary shorter"], letter: ["Make it more formal"], email: ["Shorter, under 100 words"] },
+  suggestions: { resume: ["Make the summary shorter"], letter: ["Make it more formal"], email: ["Shorter, under 100 words"], posting: ["Answer the application questions"] },
 };
 
 beforeEach(() => {
@@ -401,7 +401,7 @@ describe("the Refine with AI panel (E8-5)", () => {
     undone: false,
   };
   const panel = () => screen.getByRole("complementary", { name: "Refine with AI" });
-  const input = () => screen.getByRole("textbox", { name: "Ask for a change" });
+  const input = () => screen.getByRole("textbox", { name: "Ask for a change or a question" });
 
   it("shows the conversation, with the opening list and its footnote", () => {
     render(
@@ -425,7 +425,7 @@ describe("the Refine with AI panel (E8-5)", () => {
     expect(within(panel()).getByText(/^Ask for changes to your cover letter/)).toBeInTheDocument();
     expect(within(panel()).getByRole("button", { name: "Make it more formal" })).toBeInTheDocument();
     await user.click(screen.getByRole("tab", { name: /Job posting/ }));
-    expect(within(panel()).getByText("Switch to the resume, cover letter or email to make changes.")).toBeInTheDocument();
+    expect(within(panel()).getByText("Ask about the posting, or paste a question from the application form and I'll answer it for you.")).toBeInTheDocument();
     expect(within(panel()).queryByRole("button", { name: /Make/ })).not.toBeInTheDocument();
   });
 
@@ -470,7 +470,7 @@ describe("the Refine with AI panel (E8-5)", () => {
     render(<ApplicationView {...props} />);
     await user.click(within(screen.getByRole("group", { name: "Summary" })).getByRole("button", { name: "Ask AI" }));
     await user.click(screen.getByRole("button", { name: "Stop asking about the summary" }));
-    expect(input()).toHaveAttribute("placeholder", "Ask for a change, e.g. “sound more confident”");
+    expect(input()).toHaveAttribute("placeholder", "Ask for a change or paste a question, e.g. “Why do you want to work here?”");
   });
 
   it("shows the reply's edits, switching to the document they're on", async () => {
@@ -510,11 +510,19 @@ describe("the Refine with AI panel (E8-5)", () => {
     expect(within(panel()).getByText("Thinking…")).toBeInTheDocument();
   });
 
-  it("answers on the Job posting tab without the AI", async () => {
+  it("asks the AI from the Job posting tab, with nothing on screen, and offers to answer the posting's questions", async () => {
+    const user = userEvent.setup();
+    render(<ApplicationView {...props} initialTab="posting" />);
+    expect(within(panel()).getByRole("button", { name: "Answer the application questions" })).toBeVisible();
+    await user.type(input(), "Why do you want to work here?{Enter}");
+    expect(sendMessage).toHaveBeenCalledWith({ id: "app-1", text: "Why do you want to work here?", viewing: null, target: null });
+  });
+
+  it("needs the AI on the Job posting tab too", async () => {
     const user = userEvent.setup();
     render(<ApplicationView {...props} aiReady={false} initialTab="posting" />);
-    await user.type(input(), "Change the salary{Enter}");
-    expect(sendMessage).toHaveBeenCalledWith({ id: "app-1", text: "Change the salary", viewing: null, target: null });
+    await user.type(input(), "Why here?{Enter}");
+    expect(sendMessage).not.toHaveBeenCalled();
   });
 
   it("points to Settings without an AI provider", async () => {
@@ -715,7 +723,7 @@ describe("notes and activity (E8-9)", () => {
 
   it("keeps the refine panel to the documents", () => {
     open();
-    expect(within(screen.getByRole("complementary", { name: "Refine with AI" })).getByText("Switch to the resume, cover letter or email to make changes.")).toBeInTheDocument();
+    expect(within(screen.getByRole("complementary", { name: "Refine with AI" })).getByText("Ask about the posting, or paste a question from the application form and I'll answer it for you.")).toBeInTheDocument();
   });
 });
 
@@ -915,7 +923,7 @@ describe("the Email tab", () => {
   it("switches to the email when a reply changed it", async () => {
     const user = userEvent.setup();
     render(<ApplicationView {...props} email={email} />);
-    await user.type(screen.getByRole("textbox", { name: "Ask for a change" }), "Make the email shorter{Enter}");
+    await user.type(screen.getByRole("textbox", { name: "Ask for a change or a question" }), "Make the email shorter{Enter}");
     report({ id: "reply-1", type: "refine", status: "DONE", result: { messageId: "m9", edited: [{ document: "EMAIL", unitId: "body" }] } });
     expect(screen.getByRole("tab", { name: "Email" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("group", { name: "Message" }).className).toMatch(/flash/);

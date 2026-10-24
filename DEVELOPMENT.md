@@ -156,14 +156,14 @@ docker compose exec -e AI_LIVE=ollama app yarn vitest run src/lib/ai/providers.l
 
 ## Job search
 
-Find jobs (`/jobs`) searches the job source chosen in Settings → Job search: JSearch, Adzuna or the Bundesagentur für Arbeit. Until a choice is saved, `DOSSIER_JOBS_SOURCE` and the key variables decide (see `.env.example`). In the code, "job" already means a background task (`Job`, `src/lib/jobs`), so a job ad is a "posting", and job search lives in `src/lib/job-search`:
+Find jobs (`/jobs`) searches the job source chosen in Settings → Job search: JSearch, Adzuna, the Bundesagentur für Arbeit, Remote OK, Remotive, We Work Remotely, Himalayas, Jobicy or Arbeitnow. Until a choice is saved, `DOSSIER_JOBS_SOURCE` and the key variables decide (see `.env.example`). Automatic searches query JSearch plus the six keyless feeds (Remote OK, Remotive, We Work Remotely, Himalayas, Jobicy, Arbeitnow) in parallel, de-duplicate and round-robin their matches, and keep the configured 10–30 candidate limit so AI analysis stays bounded. In the code, "job" already means a background task (`Job`, `src/lib/jobs`), so a job ad is a "posting", and job search lives in `src/lib/job-search`:
 
 - `search.ts` and `sources.ts`: the query and posting shapes every source maps to, the URL format, and what each source covers. Shared with the browser.
-- One adapter per source (`jsearch.ts`, `adzuna.ts`, `arbeitsagentur.ts`), behind `index.ts`, which checks the country, caches answers in memory for 30 minutes and logs a source that changed or isn't answering, without the search. Failures are a `JobSearchError` with a message for the screen.
+- One adapter per source (`jsearch.ts`, `adzuna.ts`, `arbeitsagentur.ts`, `remote-ok.ts`, `remotive.ts`, `we-work-remotely.ts`), behind `index.ts`, which checks the country, caches answers in memory for 30 minutes and logs a source that changed or isn't answering, without the search. Failures are a `JobSearchError` with a message for the screen.
 - `config.ts`: which source and key are in effect. Job source keys are encrypted like the AI key, each kind of secret under its own derived key (`src/lib/secrets.ts`).
 - `src/lib/postings.ts`: the `Posting` table holds what the user saved, dismissed or started an application from. `src/lib/posting-searches.ts`: every search, kept with what it found (`PostingSearch`) until the user removes it, so opening one again asks the source nothing.
 
-The tests use answers in each source's shape (`src/test/job-search-fixtures.ts`). The live tests check the real services, and are skipped otherwise. JSearch and Adzuna spend searches from your plan; the Arbeitsagentur is free:
+The tests use answers in each source's shape. The live tests check the real services, and are skipped otherwise. JSearch and Adzuna spend searches from your plan; the other sources are keyless:
 
 ```bash
 docker compose exec -e JOBS_LIVE=jsearch -e JSEARCH_TEST_KEY=… app yarn vitest run src/lib/job-search/jsearch.live.test.ts

@@ -31,15 +31,15 @@ export function AutomationProfiles({ profiles, query }: { profiles: AutomatedSea
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="font-medium">Automatic searches</h2>
-          <p className="text-sm text-muted">Each page finds up to 10 jobs and uses one JSearch API request.</p>
+          <p className="text-sm text-muted">Searches seven sources in parallel, removes duplicates, then round-robin balances up to 30 candidates. Empty or failed sources give their share to the others.</p>
         </div>
         <Button variant="secondary" size="sm" onClick={() => { setName(query.keywords); setPagesPerRun(1); setOpen((value) => !value); }}>Save current search</Button>
       </div>
       {open && (
         <div className="mt-4 flex flex-wrap items-end gap-2 border-t border-line pt-4">
           <Input label="Profile name" value={name} onChange={(event) => setName(event.target.value)} className="min-w-[220px] flex-1" />
-          <Select label="Pages per run" value={pagesPerRun} onChange={(event) => setPagesPerRun(Number(event.target.value) as AutomationPagesPerRun)} className="min-w-[190px]">
-            {AUTOMATION_PAGE_OPTIONS.map((pages) => <option key={pages} value={pages}>{pages} · up to {pages * 10} jobs</option>)}
+          <Select label="Jobs per run" value={pagesPerRun} onChange={(event) => setPagesPerRun(Number(event.target.value) as AutomationPagesPerRun)} className="min-w-[190px]">
+            {AUTOMATION_PAGE_OPTIONS.map((pages) => <option key={pages} value={pages}>Up to {pages * 10} jobs</option>)}
           </Select>
           <Button size="sm" disabled={pending || !name.trim() || !query.keywords || !query.country} onClick={() => run(async () => {
             const result = await addAutomatedSearch({ name, pagesPerRun, query });
@@ -52,15 +52,18 @@ export function AutomationProfiles({ profiles, query }: { profiles: AutomatedSea
         <div className="mt-4 divide-y divide-line border-t border-line">
           {profiles.map((profile) => (
             <div key={profile.id} className="flex flex-wrap items-center gap-3 py-3">
-              <Toggle className="min-w-[220px] flex-1" label={profile.name} description={`${profile.query.keywords} · ${profile.query.place || profile.query.country.toUpperCase()}`} checked={profile.enabled} onCheckedChange={(enabled) => run(() => toggleAutomatedSearch({ id: profile.id, enabled }))} />
+              <div className="min-w-[220px] flex-1">
+                <Toggle label={profile.name} description={`${profile.query.keywords} · ${profile.query.place || profile.query.country.toUpperCase()}`} checked={profile.enabled} onCheckedChange={(enabled) => run(() => toggleAutomatedSearch({ id: profile.id, enabled }))} />
+                {profile.lastSourceStats.length > 0 && <p className="mt-1 text-xs text-muted">{profile.lastSourceStats.map((stat) => `${stat.source}: ${stat.error ? "error" : stat.found}`).join(" · ")}</p>}
+              </div>
               <Select
-                aria-label={`Pages per run for ${profile.name}`}
+                aria-label={`Jobs per run for ${profile.name}`}
                 value={profile.pagesPerRun}
                 disabled={pending}
                 onChange={(event) => run(() => changeAutomatedSearchPages({ id: profile.id, pagesPerRun: Number(event.target.value) as AutomationPagesPerRun }))}
                 className="min-w-[150px]"
               >
-                {AUTOMATION_PAGE_OPTIONS.map((pages) => <option key={pages} value={pages}>{pages} page{pages === 1 ? "" : "s"} · {pages * 10} jobs</option>)}
+                {AUTOMATION_PAGE_OPTIONS.map((pages) => <option key={pages} value={pages}>Up to {pages * 10} jobs</option>)}
               </Select>
               <Button variant="secondary" size="sm" disabled={pending} onClick={() => run(() => runAutomatedSearchNow({ id: profile.id }))}>Run now</Button>
               <Button variant="danger-text" size="sm" disabled={pending} onClick={() => run(() => removeAutomatedSearch({ id: profile.id }))}>Remove</Button>

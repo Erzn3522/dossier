@@ -26,11 +26,11 @@ beforeEach(() => {
   vi.mocked(changeAutomatedSearchPages).mockResolvedValue({ ok: true, data: null });
 });
 
-describe("AutomationProfiles page depth", () => {
-  it("saves a new profile with three pages", async () => {
+describe("AutomationProfiles search depth", () => {
+  it("saves a new profile with a 30-job limit", async () => {
     render(<AutomationProfiles profiles={[]} query={query} />);
     await userEvent.click(screen.getByRole("button", { name: "Save current search" }));
-    await userEvent.selectOptions(screen.getByLabelText("Pages per run"), "3");
+    await userEvent.selectOptions(screen.getByLabelText("Jobs per run"), "3");
     await userEvent.click(screen.getByRole("button", { name: "Add" }));
 
     await waitFor(() => expect(addAutomatedSearch).toHaveBeenCalledWith({
@@ -48,9 +48,10 @@ describe("AutomationProfiles page depth", () => {
       pagesPerRun: 1,
       query,
       lastRunAt: null,
+      lastSourceStats: [],
     }]} query={query} />);
 
-    await userEvent.selectOptions(screen.getByLabelText("Pages per run for Netherlands"), "3");
+    await userEvent.selectOptions(screen.getByLabelText("Jobs per run for Netherlands"), "3");
     await waitFor(() => expect(changeAutomatedSearchPages).toHaveBeenCalledWith({ id: "search-1", pagesPerRun: 3 }));
   });
 });

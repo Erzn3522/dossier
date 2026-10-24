@@ -1,0 +1,5 @@
+ALTER TYPE "PostingSource" ADD VALUE 'HIMALAYAS';
+ALTER TYPE "PostingSource" ADD VALUE 'JOBICY';
+ALTER TYPE "PostingSource" ADD VALUE 'ARBEITNOW';
+
+ALTER TABLE "AutomationRun" ADD COLUMN "sourceStats" JSONB;

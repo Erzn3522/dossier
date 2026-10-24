@@ -11,6 +11,8 @@ import {
   searchForAutomationRecipient,
   searchForAutomationRecipients,
 } from "./actions";
+import { DEFAULT_REVIEW_PARAMS } from "@/lib/review-list";
+
 import { ReviewQueue } from "./review-queue";
 
 const router = vi.hoisted(() => ({ replace: vi.fn() }));
@@ -52,7 +54,7 @@ const item: ComponentProps<typeof ReviewQueue>["items"][number] = {
 };
 
 const defaults = {
-  params: { page: 1, matchBelow: null, email: "all", sort: "queue" } as const,
+  params: DEFAULT_REVIEW_PARAMS,
   page: 1,
   pages: 1,
   pageSize: 50,
@@ -121,11 +123,29 @@ describe("ReviewQueue", () => {
   });
 
   it("stores filters and sorting in the URL and resets to page one", async () => {
-    renderQueue([item], { params: { page: 3, matchBelow: null, email: "all", sort: "queue" }, page: 3, pages: 3 });
+    renderQueue([item], { params: { ...DEFAULT_REVIEW_PARAMS, page: 3 }, page: 3, pages: 3 });
     await userEvent.selectOptions(screen.getByLabelText("Email status"), "not-found");
     expect(router.replace).toHaveBeenCalledWith("/review?email=not-found", { scroll: false });
     await userEvent.selectOptions(screen.getByLabelText("Sort by"), "highest");
     expect(router.replace).toHaveBeenCalledWith("/review?sort=highest", { scroll: false });
+  });
+
+  it("filters by status, remote and text through the URL and can clear them", async () => {
+    renderQueue([item], { options: { sources: [], searches: [], statusCounts: { ready: 4, filtered: 3, queued: 2, failed: 1 } } });
+    await userEvent.selectOptions(screen.getByLabelText("Status"), "ready");
+    expect(router.replace).toHaveBeenLastCalledWith("/review?status=ready", { scroll: false });
+    await userEvent.selectOptions(screen.getByLabelText("Work mode"), "remote");
+    expect(router.replace).toHaveBeenLastCalledWith("/review?remote=remote", { scroll: false });
+    expect(screen.getByRole("option", { name: "Ready to review (4)" })).toBeInTheDocument();
+  });
+
+  it("debounces the text search and shows Clear filters only when something is active", async () => {
+    const { rerender } = renderQueue();
+    expect(screen.queryByRole("button", { name: "Clear filters" })).not.toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText("Search"), "bosch");
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/review?q=bosch", { scroll: false }));
+    rerender(<ReviewQueue items={[item]} total={1} filtered={1} {...defaults} params={{ ...DEFAULT_REVIEW_PARAMS, q: "bosch" }} />);
+    expect(screen.getByRole("button", { name: "Clear filters" })).toBeVisible();
   });
 
   it("shows total and server-filtered counts", () => {

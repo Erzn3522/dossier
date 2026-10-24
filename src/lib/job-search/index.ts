@@ -8,6 +8,12 @@ import { JobSearchError, jobSearchError } from "./errors";
 import { adzuna } from "./adzuna";
 import { arbeitsagentur } from "./arbeitsagentur";
 import { jsearch } from "./jsearch";
+import { remoteOk } from "./remote-ok";
+import { remotive } from "./remotive";
+import { weWorkRemotely } from "./we-work-remotely";
+import { himalayas } from "./himalayas";
+import { jobicy } from "./jobicy";
+import { arbeitnow } from "./arbeitnow";
 import { postingKey, type FoundPosting, type JobSource, type SearchPage, type SearchQuery } from "./search";
 import { sourceCovers } from "./sources";
 
@@ -23,6 +29,12 @@ const ADAPTERS: { [S in JobSource]: JobSourceAdapter<S> } = {
   JSEARCH: jsearch,
   ADZUNA: adzuna,
   ARBEITSAGENTUR: arbeitsagentur,
+  REMOTE_OK: remoteOk,
+  REMOTIVE: remotive,
+  WE_WORK_REMOTELY: weWorkRemotely,
+  HIMALAYAS: himalayas,
+  JOBICY: jobicy,
+  ARBEITNOW: arbeitnow,
 };
 
 const adapterFor = <S extends JobSource>(source: S) => ADAPTERS[source] as JobSourceAdapter<S>;

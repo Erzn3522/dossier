@@ -10,17 +10,17 @@ import type { JobSource } from "./search";
 export const REQUEST_TIMEOUT_MS = 10_000;
 const MAX_BYTES = 5 * 1024 * 1024;
 
-/** GETs JSON from a source, turning every failure into a JobSearchError. */
-export async function requestJson(
+/** GETs a bounded response from a source, turning every failure into a JobSearchError. */
+export async function requestText(
   source: JobSource,
   url: URL,
-  { headers = {}, signal }: { headers?: Record<string, string>; signal?: AbortSignal } = {},
-): Promise<unknown> {
-  const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+  { headers = {}, signal, accept = "text/plain", timeoutMs = REQUEST_TIMEOUT_MS }: { headers?: Record<string, string>; signal?: AbortSignal; accept?: string; timeoutMs?: number } = {},
+): Promise<string> {
+  const timeout = AbortSignal.timeout(timeoutMs);
   let response: Response;
   try {
     response = await fetch(url, {
-      headers: { accept: "application/json", ...headers },
+      headers: { accept, ...headers },
       signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
       cache: "no-store",
     });
@@ -36,6 +36,16 @@ export async function requestJson(
 
   const text = await readLimited(response, MAX_BYTES);
   if (text === null) throw jobSearchError("changed", source, { detail: `${url.pathname}: answer over ${MAX_BYTES} bytes` });
+  return text;
+}
+
+/** GETs JSON from a source, turning every failure into a JobSearchError. */
+export async function requestJson(
+  source: JobSource,
+  url: URL,
+  options: { headers?: Record<string, string>; signal?: AbortSignal; timeoutMs?: number } = {},
+): Promise<unknown> {
+  const text = await requestText(source, url, { ...options, accept: "application/json" });
   try {
     return JSON.parse(text) as unknown;
   } catch {
