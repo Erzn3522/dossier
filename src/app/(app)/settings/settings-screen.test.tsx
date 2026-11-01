@@ -14,7 +14,7 @@ describe("SettingsScreen", () => {
     expect(screen.getByText(/^It's your server, so it's your call\./)).toBeInTheDocument();
     const nav = screen.getByRole("navigation", { name: "Settings sections" });
     const links = within(nav).getAllByRole("link");
-    expect(links.map((link) => link.textContent)).toEqual(["AI provider", "Job search", "Automation", "Documents", "Your data", "About"]);
+    expect(links.map((link) => link.textContent)).toEqual(["AI provider", "Job search", "LinkedIn posts", "Automation", "Documents", "Your data", "About"]);
     expect(within(nav).getByRole("link", { name: "Your data" })).toHaveAttribute("aria-current", "page");
     expect(within(nav).getByRole("link", { name: "Your data" })).toHaveAttribute("href", "/settings?section=data");
     expect(within(nav).getByRole("link", { name: "About" })).not.toHaveAttribute("aria-current");

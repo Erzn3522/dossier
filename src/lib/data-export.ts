@@ -29,8 +29,11 @@ import {
   VersionCause,
 } from "@/generated/prisma/enums";
 import { decryptApiKey } from "@/lib/ai/api-key";
-import { decryptSecret, JOB_SOURCE_KEY } from "@/lib/secrets";
+import { APIFY_API_KEY, decryptSecret, JOB_SOURCE_KEY } from "@/lib/secrets";
+import { profileFitResultSchema } from "@/lib/linkedin-posts/profile-fit-data";
 import { appVersion } from "@/lib/version";
+import { linkedInPostSchema, postSearchSchema } from "@/lib/linkedin-posts/data";
+import { campaignInputSchema, countryAssessmentSchema, occurrenceSchema } from "@/lib/linkedin-posts/campaign-data";
 
 // Everything a user keeps in Dossier as one JSON file (E10-4, SET-10): the
 // profile, custom themes, settings and applications with their history,
@@ -39,15 +42,15 @@ import { appVersion } from "@/lib/version";
 // and built-in themes stay behind: they belong to the server, not the user.
 
 export const EXPORT_FORMAT = "dossier-export";
-/** Bump when the file's shape changes; imports refuse versions they don't know. 5 added cold outreach data. */
-export const EXPORT_SCHEMA_VERSION = 5;
+/** Bump when the file's shape changes; imports refuse versions they don't know. 9 added LinkedIn profile matching. */
+export const EXPORT_SCHEMA_VERSION = 9;
 /** The versions imports can read. */
-export const EXPORT_SCHEMA_VERSIONS: readonly number[] = [1, 2, 3, 4, 5];
+export const EXPORT_SCHEMA_VERSIONS: readonly number[] = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
 /** The setting that holds the encrypted API key, which only this server can read. */
 const API_KEY_SETTING = "apiKeyEnc";
 /** The settings that hold encrypted keys, which only this server can read: never exported as they are. */
-export const SECRET_SETTINGS: readonly string[] = [API_KEY_SETTING, "jsearchKeyEnc", "adzunaKeyEnc"];
+export const SECRET_SETTINGS: readonly string[] = [API_KEY_SETTING, "jsearchKeyEnc", "adzunaKeyEnc", "apifyKeyEnc"];
 /** The settings that belong to this install rather than its data (the usage ping's and the update check's): never exported, and kept by an import. */
 export const INSTALL_SETTINGS: readonly string[] = ["usagePingId", "usagePingDay", "latestVersion", "latestVersionUrl", "updateCheckDay", "updateDismissed"];
 
@@ -273,10 +276,24 @@ const outreachDelivery = z.object({
 });
 const outreachSuppression = z.object({ id: text, kind: z.enum(OutreachSuppressionKind), value: text, reason: text, createdAt: date });
 
+const linkedInCampaignRecord = z.object({
+  id: text, input: campaignInputSchema, status: text, provider: text, model: text.nullable(), error: text.nullable(), createdAt: date, updatedAt: date,
+  attempts: z.array(z.object({
+    id: text, campaignId: text, country: text, round: int, position: int, status: text, queries: z.array(z.string().max(200)).max(5), strategy: text.nullable(),
+    capUsd: z.number().nonnegative().max(1), runId: text.nullable(), jobId: text.nullable(), fetched: int, fresh: int, duplicates: int,
+    relevant: int, error: text.nullable(), createdAt: date, updatedAt: date,
+  })),
+  posts: z.array(z.object({
+    id: text, campaignId: text, url: text, post: linkedInPostSchema, text: text, authorName: text, authorType: text,
+    likes: int, postedAt: optionalDate, hiring: z.boolean(), remote: z.boolean(), relevant: z.boolean(), confidence: text,
+    assessments: z.array(countryAssessmentSchema), occurrences: z.array(occurrenceSchema), contentHash: text.default(""), createdAt: date, updatedAt: date,
+  })),
+});
+
 /** An export file as read back (E10-6). */
 export const exportSchema = z.object({
   format: z.literal(EXPORT_FORMAT),
-  schemaVersion: z.literal([1, 2, 3, 4, 5]),
+  schemaVersion: z.literal([1, 2, 3, 4, 5, 6, 7, 8, 9]),
   appVersion: text,
   exportedAt: date,
   profile: z.object({
@@ -292,12 +309,20 @@ export const exportSchema = z.object({
   /** The AI provider's key in plain text, only when the user asked for it. */
   apiKey: text.optional(),
   /** The job sources' keys in plain text, likewise (E14-9). */
-  jobSourceKeys: z.object({ jsearch: text.optional(), adzuna: text.optional() }).optional(),
+  jobSourceKeys: z.object({ jsearch: text.optional(), adzuna: text.optional(), apify: text.optional() }).optional(),
   applications: z.array(application),
   /** Saved and dismissed postings (E14-9); absent in version 1 files. */
   postings: z.array(posting).default([]),
   /** Past searches with what they found (E14-10); absent in version 1 files. */
   searches: z.array(postingSearch).default([]),
+  linkedInSearches: z.array(z.object({
+    id: text, query: postSearchSchema, posts: z.array(linkedInPostSchema), runId: text.nullable(),
+    status: text, error: text.nullable(), createdAt: date, updatedAt: date,
+  })).default([]),
+  linkedInCampaigns: z.array(linkedInCampaignRecord).default([]),
+  linkedInProfileFits: z.array(z.object({ key: text, profileHash: text, postHash: text, result: profileFitResultSchema, verdict: text, provider: text, model: text.nullable(), evaluatedAt: date })).default([]),
+  linkedInProfileReviews: z.array(z.object({ id: text, scope: text, profileHash: text, provider: text, model: text.nullable(), status: text, total: int, processed: int, jobId: text.nullable(), error: text.nullable(), createdAt: date, updatedAt: date })).default([]),
+  linkedInDismissals: z.array(z.object({ key: text, post: linkedInPostSchema, dismissedAt: date })).default([]),
   automatedSearches: z.array(automatedSearch).default([]),
   automationRuns: z.array(automationRun).default([]),
   automationCandidates: z.array(automationCandidate).default([]),
@@ -327,7 +352,7 @@ export async function buildExport(
   { includeApiKey = false, now = new Date() }: { includeApiKey?: boolean; now?: Date } = {},
 ): Promise<DossierExport> {
   return db.$transaction(async (tx) => {
-    const [fields, skills, languages, experience, education, references, themes, settings, applications, postings, searches, automatedSearches, automationRuns, automationCandidates, outreachCampaigns, outreachRuns, outreachLeads, outreachDeliveries, outreachSuppressions] = await Promise.all([
+    const [fields, skills, languages, experience, education, references, themes, settings, applications, postings, searches, automatedSearches, automationRuns, automationCandidates, outreachCampaigns, outreachRuns, outreachLeads, outreachDeliveries, outreachSuppressions, linkedInSearches, linkedInDismissals, linkedInCampaigns, linkedInProfileFits, linkedInProfileReviews] = await Promise.all([
       tx.profileField.findMany({ select: { key: true, value: true }, orderBy: { key: "asc" } }),
       tx.skill.findMany({ select: { id: true, name: true, sort: true, createdAt: true }, orderBy: { createdAt: "asc" } }),
       tx.language.findMany({ select: { id: true, name: true, level: true, sort: true, createdAt: true }, orderBy: { createdAt: "asc" } }),
@@ -359,6 +384,11 @@ export async function buildExport(
       tx.outreachLead.findMany({ orderBy: { createdAt: "asc" } }),
       tx.outreachDelivery.findMany({ orderBy: { attemptedAt: "asc" } }),
       tx.outreachSuppression.findMany({ orderBy: { createdAt: "asc" } }),
+      tx.linkedInPostSearch.findMany({ orderBy: { createdAt: "asc" } }),
+      tx.linkedInPostDismissal.findMany({ orderBy: { dismissedAt: "asc" } }),
+      tx.linkedInCampaign.findMany({ orderBy: { createdAt: "asc" }, include: { attempts: { orderBy: { position: "asc" } }, posts: { orderBy: { createdAt: "asc" } } } }),
+      tx.linkedInProfileFit.findMany({ orderBy: { evaluatedAt: "asc" } }),
+      tx.linkedInProfileReview.findMany({ orderBy: { createdAt: "asc" } }),
     ]);
 
     // Keys only when asked for, decrypted; one that's unreadable here too (DOSSIER_SECRET changed) has nothing to export.
@@ -375,6 +405,7 @@ export async function buildExport(
       Object.entries({
         jsearch: readable(stored("jsearchKeyEnc"), (value) => decryptSecret(JOB_SOURCE_KEY, value)),
         adzuna: readable(stored("adzunaKeyEnc"), (value) => decryptSecret(JOB_SOURCE_KEY, value)),
+        apify: readable(stored("apifyKeyEnc"), (value) => decryptSecret(APIFY_API_KEY, value)),
       }).filter(([, value]) => value),
     );
 
@@ -398,6 +429,17 @@ export async function buildExport(
       applications,
       postings,
       searches,
+      linkedInSearches: linkedInSearches.map((search) => ({
+        ...search, query: postSearchSchema.parse(search.query), posts: linkedInPostSchema.array().parse(search.posts),
+      })),
+      linkedInProfileFits: linkedInProfileFits.map((entry) => ({ ...entry, result: profileFitResultSchema.parse(entry.result) })),
+      linkedInProfileReviews,
+      linkedInDismissals: linkedInDismissals.map((entry) => ({ ...entry, post: linkedInPostSchema.parse(entry.post) })),
+      linkedInCampaigns: linkedInCampaigns.map((c) => ({
+        ...c, input: campaignInputSchema.parse(c.input),
+        attempts: c.attempts.map((a) => ({ ...a, queries: z.array(z.string()).parse(a.queries), capUsd: Number(a.capUsd) })),
+        posts: c.posts.map((p) => ({ ...p, post: linkedInPostSchema.parse(p.post), assessments: countryAssessmentSchema.array().parse(p.assessments), occurrences: occurrenceSchema.array().parse(p.occurrences) })),
+      })),
       automatedSearches,
       automationRuns,
       automationCandidates,

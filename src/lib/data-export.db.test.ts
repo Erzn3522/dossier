@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { encryptApiKey } from "@/lib/ai/api-key";
-import { encryptSecret, JOB_SOURCE_KEY } from "@/lib/secrets";
+import { APIFY_API_KEY, encryptSecret, JOB_SOURCE_KEY } from "@/lib/secrets";
 import { createTestClient, resetDatabase } from "@/test/db";
 
 import { seedBuiltIns } from "../../prisma/seed/built-ins";
@@ -25,6 +25,18 @@ beforeEach(async () => {
 afterAll(() => prisma().$disconnect());
 
 describe("buildExport (E10-4)", () => {
+  it("exports LinkedIn history and includes its token only when explicitly requested", async () => {
+    await prisma().setting.create({ data: { key: "apifyKeyEnc", value: encryptSecret(APIFY_API_KEY, "apify-test", "s".repeat(32)) } });
+    await prisma().linkedInPostSearch.create({ data: {
+      query: { keywords: ["hiring engineer"], authors: [], postedWithin: "month", since: "", maxPosts: 25 },
+      status: "SUCCEEDED", posts: [],
+    } });
+    const without = await buildExport(prisma());
+    expect(without.linkedInSearches).toHaveLength(1);
+    expect(JSON.stringify(without)).not.toContain("apifyKeyEnc");
+    expect(JSON.stringify(without)).not.toContain("apify-test");
+    expect((await buildExport(prisma(), { includeApiKey: true })).jobSourceKeys?.apify).toBe("apify-test");
+  });
   it("has everything, with IDs, and reads back through the import schema", async () => {
     const data = await buildExport(prisma(), { now });
     const file = exportSchema.parse(JSON.parse(JSON.stringify(data)));

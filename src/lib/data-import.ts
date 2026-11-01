@@ -4,7 +4,9 @@ import { Prisma, type PrismaClient } from "@/generated/prisma/client";
 import { encryptApiKey } from "@/lib/ai/api-key";
 import { EXPORT_FORMAT, EXPORT_SCHEMA_VERSION, EXPORT_SCHEMA_VERSIONS, exportSchema, INSTALL_SETTINGS, SECRET_SETTINGS, type DossierExport } from "@/lib/data-export";
 import { emailDiscoverySchema } from "@/lib/email-discovery-data";
-import { encryptSecret, JOB_SOURCE_KEY } from "@/lib/secrets";
+import { APIFY_API_KEY, encryptSecret, JOB_SOURCE_KEY } from "@/lib/secrets";
+import { postContentHash } from "@/lib/linkedin-posts/profile-fit-ai";
+import { linkedInPostKey } from "@/lib/linkedin-posts/post-key";
 import { createDefaultOutreachCampaign } from "@/lib/outreach/defaults";
 
 // Restoring from an export file (E10-6, SET-10): everything is replaced in
@@ -83,8 +85,9 @@ const discoveredEmailCount = (value: unknown) => {
  * install's own settings (the usage ping's) stay as they are.
  */
 export async function importExport(db: PrismaClient, data: DossierExport): Promise<void> {
-  const { profile, themes, settings, applications, postings, searches, automatedSearches, automationRuns, automationCandidates, outreachCampaigns, outreachRuns, outreachLeads, outreachDeliveries, outreachSuppressions, apiKey, jobSourceKeys } = data;
+  const { profile, themes, settings, applications, postings, searches, automatedSearches, automationRuns, automationCandidates, outreachCampaigns, outreachRuns, outreachLeads, outreachDeliveries, outreachSuppressions, linkedInSearches, linkedInCampaigns, linkedInDismissals, linkedInProfileFits, linkedInProfileReviews, apiKey, jobSourceKeys } = data;
   const fromFile: Record<string, string | null> = {
+    apifyKeyEnc: jobSourceKeys?.apify ? encryptSecret(APIFY_API_KEY, jobSourceKeys.apify) : null,
     apiKeyEnc: apiKey ? encryptApiKey(apiKey) : null,
     jsearchKeyEnc: jobSourceKeys?.jsearch ? encryptSecret(JOB_SOURCE_KEY, jobSourceKeys.jsearch) : null,
     adzunaKeyEnc: jobSourceKeys?.adzuna ? encryptSecret(JOB_SOURCE_KEY, jobSourceKeys.adzuna) : null,
@@ -103,6 +106,11 @@ export async function importExport(db: PrismaClient, data: DossierExport): Promi
       await tx.automatedSearch.deleteMany();
       await tx.posting.deleteMany();
       await tx.postingSearch.deleteMany();
+      await tx.linkedInPostSearch.deleteMany();
+      await tx.linkedInCampaign.deleteMany();
+      await tx.linkedInPostDismissal.deleteMany();
+      await tx.linkedInProfileFit.deleteMany();
+      await tx.linkedInProfileReview.deleteMany();
       await tx.application.deleteMany();
       await tx.experience.deleteMany();
       await tx.skill.deleteMany();
@@ -176,6 +184,34 @@ export async function importExport(db: PrismaClient, data: DossierExport): Promi
       await tx.postingSearch.createMany({
         data: searches.map((search) => ({ ...search, query: (search.query ?? {}) as Prisma.InputJsonValue, postings: (search.postings ?? []) as Prisma.InputJsonValue })),
       });
+      await tx.linkedInPostSearch.createMany({
+        data: linkedInSearches.map((search) => ({
+          ...search, query: (search.query ?? {}) as Prisma.InputJsonValue, posts: (search.posts ?? []) as Prisma.InputJsonValue,
+          // Imported histories do not control runs in another Apify account.
+          runId: null,
+          status: ["STARTING", "RUNNING"].includes(search.status) ? "FAILED" : search.status,
+          error: ["STARTING", "RUNNING"].includes(search.status) ? "This search was in progress when exported. Check its original Apify account." : search.error,
+        })),
+      });
+      await tx.linkedInProfileFit.createMany({ data: linkedInProfileFits.map((entry) => ({ ...entry, result: entry.result as Prisma.InputJsonValue })), skipDuplicates: true });
+      await tx.linkedInProfileReview.createMany({ data: linkedInProfileReviews.map((entry) => ({ ...entry, status: "IMPORTED", jobId: null })), skipDuplicates: true });
+      await tx.linkedInPostDismissal.createMany({ data: linkedInDismissals.map((entry) => ({
+        key: linkedInPostKey(entry.post), post: entry.post as Prisma.InputJsonValue, dismissedAt: entry.dismissedAt,
+      })), skipDuplicates: true });
+      for (const campaign of linkedInCampaigns) {
+        const { attempts, posts, ...record } = campaign;
+        await tx.linkedInCampaign.create({ data: {
+          ...record, input: (record.input ?? {}) as Prisma.InputJsonValue, status: "IMPORTED",
+          error: "Imported history is read-only. Start a new search to use these topics and countries.",
+        } });
+        await tx.linkedInAttempt.createMany({ data: attempts.map((a) => ({
+          ...a, campaignId: record.id, queries: (a.queries ?? []) as Prisma.InputJsonValue, runId: null, jobId: null,
+          status: a.status === "COMPLETE" ? "COMPLETE" : "IMPORTED",
+        })) });
+        await tx.linkedInCampaignPost.createMany({ data: posts.map((p) => ({
+          ...p, contentHash: postContentHash(p.post.text), campaignId: record.id, post: (p.post ?? {}) as Prisma.InputJsonValue, assessments: (p.assessments ?? []) as Prisma.InputJsonValue, occurrences: (p.occurrences ?? []) as Prisma.InputJsonValue,
+        })) });
+      }
       await tx.automatedSearch.createMany({
         data: automatedSearches.map((search) => ({ ...search, query: (search.query ?? {}) as Prisma.InputJsonValue })),
       });

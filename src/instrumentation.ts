@@ -9,6 +9,12 @@ export async function register() {
     const { recoverInterruptedJobs } = await import("@/lib/jobs/runner");
     const { logServerError } = await import("@/lib/log");
     await recoverInterruptedJobs().catch((error: unknown) => logServerError("startup", error));
+    const { recoverProfileReviews } = await import("@/lib/linkedin-posts/profile-fit-job");
+    await recoverProfileReviews().catch((error: unknown) => logServerError("profile review startup", error));
+
+    const { recoverCampaigns, startCampaignSchedule } = await import("@/lib/linkedin-posts/coordinator");
+    await recoverCampaigns().catch((error: unknown) => logServerError("linkedin startup", error));
+    startCampaignSchedule();
 
     // Finished jobs, with what they were given and wrote, are deleted after a while.
     const { startJobSweep } = await import("@/lib/jobs/retention");

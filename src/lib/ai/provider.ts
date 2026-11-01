@@ -22,6 +22,8 @@ export type CompletionRequest = {
   /** Cancels the call, e.g. when the user leaves or cancels the job. */
   signal?: AbortSignal;
   maxTokens?: number;
+  /** Tasks with their own bounded correction loop can disable the default JSON retry. */
+  formatRetries?: 0 | 1;
 };
 
 export type JsonCompletionRequest<T> = CompletionRequest & {
@@ -121,6 +123,7 @@ export abstract class BaseProvider implements AIProvider {
     // E6-4: an answer that doesn't fit gets one more try, told what was wrong.
     const first = validateJson(answer.text, schema);
     if (first.ok) return first.data;
+    if (request.formatRetries === 0) throw AiError.of("invalid-output");
     const retry = await call([
       ...request.messages,
       { role: "assistant", content: answer.text },

@@ -66,3 +66,16 @@ export function formatDay(date: Date, timeZone?: string, now = new Date()): stri
 export function formatDateTime(date: Date, timeZone?: string, now = new Date()): string {
   return `${formatDay(date, timeZone, now)}, ${formatTime(date, timeZone)}`;
 }
+
+/** Stable full timestamp for SSR: fixed punctuation, English month names and an explicit time zone. */
+export function formatTimestamp(date: Date, timeZone = "UTC"): string {
+  if (Number.isNaN(date.getTime())) return "Date unavailable";
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    day: "numeric", month: "numeric", year: "numeric",
+    hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+    calendar: "gregory", numberingSystem: "latn", timeZone,
+  }).formatToParts(date);
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((entry) => entry.type === type)?.value ?? "";
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return `${Number(part("day"))} ${months[Number(part("month")) - 1]} ${part("year")}, ${part("hour").padStart(2, "0")}:${part("minute").padStart(2, "0")}`;
+}

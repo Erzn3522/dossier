@@ -6,6 +6,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { AiProvider, JobStatus } from "@/generated/prisma/enums";
 import { loadAiConfig } from "@/lib/ai/config";
 import { AiError } from "@/lib/ai/errors";
+import { ActionError } from "@/lib/action";
 import { logServerError } from "@/lib/log";
 import { prisma } from "@/lib/prisma";
 
@@ -249,10 +250,10 @@ async function execute(id: string, controller: AbortController): Promise<void> {
     // AI failures already say what to do; anything else is logged and kept vague.
     const message = controller.signal.aborted
       ? JOB_MESSAGES.cancelled
-      : error instanceof AiError
+      : error instanceof AiError || error instanceof ActionError
         ? error.message
         : JOB_MESSAGES.failed;
-    if (!(error instanceof AiError) && !controller.signal.aborted) logServerError(`job ${id}`, error);
+    if (!(error instanceof AiError) && !(error instanceof ActionError) && !controller.signal.aborted) logServerError(`job ${id}`, error);
     await finish(id, { status: JobStatus.FAILED, error: message }).catch((cause: unknown) => logServerError(`job ${id}`, cause));
   }
 }

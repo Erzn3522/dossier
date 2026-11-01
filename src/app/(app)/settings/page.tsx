@@ -27,6 +27,8 @@ import { settingsSectionFromParam } from "./sections";
 import { SettingsScreen } from "./settings-screen";
 import { AutomationSection } from "./automation-section";
 import { gmailConnectionView } from "@/lib/gmail/client";
+import { apifyKeyState } from "@/lib/linkedin-posts/searches";
+import { LinkedInPostsSection } from "./linkedin-posts-section";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -45,6 +47,8 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
         </>
       ) : section === "jobs" ? (
         <JobSearchSection initial={jobSearchView(await loadJobSearchConfig())} />
+      ) : section === "linkedin" ? (
+        <LinkedInPostsSection initial={await apifyKeyState()} />
       ) : section === "automation" ? (
         <AutomationSection
           initial={{
@@ -62,7 +66,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
         />
       ) : section === "data" ? (
         <DataSection
-          hasApiKey={[settings.apiKeyEnc, settings.jsearchKeyEnc, settings.adzunaKeyEnc].some((key) => key !== null)}
+          hasApiKey={[settings.apiKeyEnc, settings.jsearchKeyEnc, settings.adzunaKeyEnc, settings.apifyKeyEnc].some((key) => key !== null)}
           exportName={exportFileName()}
           backups={{
             on: settings.nightlyBackup,

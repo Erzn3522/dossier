@@ -264,6 +264,11 @@ export const deleteEverything = action(z.object({ confirm: z.literal("DELETE") }
     // Find jobs' postings and past searches (E14-9, E14-10).
     await tx.posting.deleteMany();
     await tx.postingSearch.deleteMany();
+    await tx.linkedInPostSearch.deleteMany();
+    await tx.linkedInCampaign.deleteMany();
+    await tx.linkedInPostDismissal.deleteMany();
+    await tx.linkedInProfileFit.deleteMany();
+    await tx.linkedInProfileReview.deleteMany();
     // Applications take their history, documents, chat and notes along.
     await tx.application.deleteMany();
     await tx.experience.deleteMany();

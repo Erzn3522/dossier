@@ -40,6 +40,15 @@ beforeEach(async () => {
 afterAll(() => prisma().$disconnect());
 
 describe("importExport (E10-6)", () => {
+  it("restores LinkedIn history without resuming runs from an imported account", async () => {
+    const file = await asFile();
+    file.linkedInSearches = [{
+      id: "linkedin-import", query: { keywords: ["hiring engineer"], authors: [], postedWithin: "month", since: "", maxPosts: 25 },
+      posts: [], runId: "foreign-run", status: "RUNNING", error: null, createdAt: now, updatedAt: now,
+    }];
+    await importExport(prisma(), file);
+    expect(await prisma().linkedInPostSearch.findUnique({ where: { id: "linkedin-import" } })).toMatchObject({ status: "FAILED", runId: null });
+  });
   it("restores everything as it was exported", async () => {
     const file = await asFile();
     const before = await snapshot();
