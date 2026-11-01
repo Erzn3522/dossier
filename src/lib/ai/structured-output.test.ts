@@ -85,6 +85,12 @@ describe.each(harnesses)("$name: structured output", ({ make, respond, conversat
     expect(requests).toHaveLength(1);
   });
 
+  it("can leave format corrections to a task with its own bounded loop", async () => {
+    const requests = answers("{}");
+    await expect(make().complete({ ...ask, formatRetries: 0 })).rejects.toMatchObject({ kind: "invalid-output" });
+    expect(requests).toHaveLength(1);
+  });
+
   it("accepts JSON in a code fence without asking again", async () => {
     const requests = answers('```json\n{"company": "Ledgerly", "years": 5}\n```');
     expect(await make().complete(ask)).toEqual({ company: "Ledgerly", years: 5 });

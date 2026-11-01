@@ -2,6 +2,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
 import { AiError } from "@/lib/ai/errors";
+import { ActionError } from "@/lib/action";
 import { createTestClient, resetDatabase } from "@/test/db";
 
 import { cancelApplicationJobs, cancelJob, defineJob, getJob, recoverInterruptedJobs, retryJob, startJob, subscribeJob } from "./runner";
@@ -66,6 +67,15 @@ beforeEach(async () => {
 afterAll(() => prisma().$disconnect());
 
 describe("the job runner", () => {
+  it("keeps explicit safe domain errors visible instead of replacing them with the generic job error", async () => {
+    const definition = defineJob({ type: "test-safe-domain-error", input: z.object({}), result: z.object({}),
+      async run() { throw new ActionError("This post was omitted from the assessment. Resume without repeating the paid search."); },
+    });
+    const id = await startJob(definition, {});
+    await eventually(async () => {
+      expect(await getJob(id)).toMatchObject({ status: "FAILED", error: "This post was omitted from the assessment. Resume without repeating the paid search." });
+    });
+  });
   it("runs a job in the background with named steps and keeps its result (E6-7)", async () => {
     const seen: string[] = [];
     const id = await startJob(gated, { name: "Jane", fail: "no" }, { key: "application:1" });

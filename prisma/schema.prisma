@@ -801,6 +801,118 @@ model EmailDelivery {
   @@index([status])
 }
 
+/// Public post searches and their results, with the upstream run for resumable polling.
+model LinkedInCampaign {
+  id          String @id @default(cuid())
+  input       Json
+  status      String @default("RUNNING")
+  provider    String
+  model       String?
+  error       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  attempts    LinkedInAttempt[]
+  posts       LinkedInCampaignPost[]
+  @@index([status])
+}
+
+model LinkedInAttempt {
+  id          String @id @default(cuid())
+  campaignId  String
+  campaign    LinkedInCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  country     String
+  round       Int
+  position    Int
+  status      String @default("PENDING")
+  queries     Json @default("[]")
+  strategy    String?
+  capUsd      Decimal @db.Decimal(12, 6)
+  runId       String?
+  jobId       String?
+  fetched     Int @default(0)
+  fresh       Int @default(0)
+  duplicates  Int @default(0)
+  relevant    Int @default(0)
+  error       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  @@unique([campaignId, position])
+}
+
+model LinkedInCampaignPost {
+  id          String @id @default(cuid())
+  campaignId  String
+  campaign    LinkedInCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  url         String
+  post        Json
+  text        String
+  authorName  String
+  authorType  String
+  likes       Int @default(0)
+  postedAt    DateTime?
+  hiring      Boolean @default(false)
+  remote      Boolean @default(false)
+  relevant    Boolean @default(false)
+  confidence  String @default("uncertain")
+  assessments Json @default("[]")
+  occurrences Json @default("[]")
+  contentHash String @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  @@unique([campaignId, url])
+  @@index([campaignId, createdAt])
+}
+
+model LinkedInProfileFit {
+  key          String
+  profileHash  String
+  postHash     String
+  result       Json
+  verdict      String
+  provider     String
+  model        String?
+  evaluatedAt  DateTime @default(now())
+  @@id([key, profileHash, postHash])
+  @@index([profileHash, verdict])
+}
+
+model LinkedInProfileReview {
+  id           String @id @default(cuid())
+  scope        String @unique
+  profileHash  String
+  provider     String
+  model        String?
+  status       String @default("RUNNING")
+  total        Int
+  processed    Int @default(0)
+  jobId        String?
+  error        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  @@index([status])
+}
+
+model LinkedInPostDismissal {
+  key         String @id
+  post        Json
+  dismissedAt DateTime @default(now())
+
+  @@index([dismissedAt])
+}
+
+model LinkedInPostSearch {
+  id        String   @id @default(cuid())
+  query     Json
+  posts     Json     @default("[]")
+  runId     String?
+  status    String   @default("STARTING")
+  error     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([createdAt])
+}
+
 // ─── Sign-in (E3-4) ──────────────────────────────────────────────────────────
 
 /// Failed sign-in attempts, for rate limiting (AUTH-5): one row per client IP,

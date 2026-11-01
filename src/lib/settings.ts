@@ -72,6 +72,7 @@ export const settingsSchema = z.object({
   model: z.string().nullable().catch(null),
   /** Encrypted with a key derived from DOSSIER_SECRET (E6-2); never sent to the client. */
   apiKeyEnc: z.string().nullable().catch(null),
+  apifyKeyEnc: z.string().nullable().catch(null),
   creativity: z.enum(Creativity).catch(Creativity.BALANCED),
   /** "Never invent experience" (SET-4). */
   strict: flag(true),

@@ -12,3 +12,5 @@ import "./import-profile";
 import "./prepare-automation-candidate";
 import "./prepare-outreach-lead";
 import "./quick-apply";
+import "../linkedin-posts/campaign-jobs";
+import "../linkedin-posts/profile-fit-job";
